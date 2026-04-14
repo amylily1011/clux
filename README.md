@@ -30,7 +30,7 @@ Based on [Professor Daniel Jackson's usability principles](https://essenceofsoft
 ## Self-host in 2 minutes
 
 ```bash
-git clone https://github.com/your-username/clux
+git clone https://github.com/amylily1011/clux
 cd clux
 npm install
 cp .env.example .env.local
@@ -44,7 +44,7 @@ Get your Anthropic API key at [console.anthropic.com](https://console.anthropic.
 
 ### Deploy to Vercel
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/clux&env=ANTHROPIC_API_KEY&envDescription=Your%20Anthropic%20API%20key&envLink=https://console.anthropic.com)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/amylily1011/clux&env=ANTHROPIC_API_KEY&envDescription=Your%20Anthropic%20API%20key&envLink=https://console.anthropic.com)
 
 ---
 
@@ -65,7 +65,7 @@ Get your Anthropic API key at [console.anthropic.com](https://console.anthropic.
 - [ ] PDF reports
 - [ ] Score tracking over time
 
-Found a bug or have a feature idea? [Open an issue](https://github.com/your-username/clux/issues).
+Found a bug or have a feature idea? [Open an issue](https://github.com/amylily1011/clux/issues).
 
 ---
 
