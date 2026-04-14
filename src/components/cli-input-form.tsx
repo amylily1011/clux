@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import type { CLIAudience, EvaluationRequest } from "@/types/evaluation";
+import type { CLIAudience } from "@/types/evaluation";
 
 interface Props {
   onResult: (result: unknown) => void;
@@ -12,14 +10,11 @@ interface Props {
   setLoading: (v: boolean) => void;
 }
 
-const INPUT_TYPES: { value: EvaluationRequest["inputType"]; label: string }[] = [
-  { value: "help", label: "--help output" },
-  { value: "manpage", label: "Man page" },
-  { value: "errors", label: "Error messages" },
-  { value: "general", label: "General description" },
-];
-
-const AUDIENCES: { value: CLIAudience; label: string; description: string }[] = [
+const AUDIENCES: {
+  value: CLIAudience;
+  label: string;
+  description: string;
+}[] = [
   {
     value: "human",
     label: "Human-first",
@@ -36,8 +31,6 @@ const MAX_CHARS = 12000;
 
 export function CLIInputForm({ onResult, onError, loading, setLoading }: Props) {
   const [cliText, setCLIText] = useState("");
-  const [cliName, setCLIName] = useState("");
-  const [inputType, setInputType] = useState<EvaluationRequest["inputType"]>("help");
   const [audience, setAudience] = useState<CLIAudience>("human");
 
   async function handleSubmit(e: React.FormEvent) {
@@ -56,8 +49,6 @@ export function CLIInputForm({ onResult, onError, loading, setLoading }: Props) 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cliText: cliText.slice(0, MAX_CHARS),
-          cliName: cliName.trim() || undefined,
-          inputType,
           audience,
         }),
       });
@@ -79,10 +70,13 @@ export function CLIInputForm({ onResult, onError, loading, setLoading }: Props) 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Audience selector — required, primary decision */}
+      {/* Audience selector */}
       <div className="space-y-2">
-        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-          Who is this CLI primarily designed for?
+        <label
+          className="text-xs font-mono uppercase tracking-widest"
+          style={{ color: "#8b949e", letterSpacing: "2px" }}
+        >
+          Primary audience
         </label>
         <div className="grid grid-cols-2 gap-3">
           {AUDIENCES.map((a) => (
@@ -90,16 +84,24 @@ export function CLIInputForm({ onResult, onError, loading, setLoading }: Props) 
               key={a.value}
               type="button"
               onClick={() => setAudience(a.value)}
-              className={`text-left p-3 rounded-xl border-2 transition-colors ${
-                audience === a.value
-                  ? "border-indigo-500 bg-indigo-50"
-                  : "border-slate-200 bg-white hover:border-slate-300"
-              }`}
+              className="text-left p-4 rounded-lg transition-all"
+              style={{
+                background: "#050507",
+                border: audience === a.value
+                  ? "2px solid #00d992"
+                  : "1px solid #3d3a39",
+                boxShadow: audience === a.value
+                  ? "rgba(0, 217, 146, 0.08) 0px 0px 15px"
+                  : "none",
+              }}
             >
-              <div className={`font-semibold text-sm ${audience === a.value ? "text-indigo-700" : "text-slate-700"}`}>
+              <div
+                className="font-semibold text-sm"
+                style={{ color: audience === a.value ? "#00d992" : "#f2f2f2" }}
+              >
                 {a.label}
               </div>
-              <div className="text-xs text-slate-500 mt-0.5 leading-snug">
+              <div className="text-xs mt-1 leading-snug" style={{ color: "#8b949e" }}>
                 {a.description}
               </div>
             </button>
@@ -107,70 +109,55 @@ export function CLIInputForm({ onResult, onError, loading, setLoading }: Props) 
         </div>
       </div>
 
-      {/* Input type selector */}
-      <div className="flex flex-wrap gap-2">
-        {INPUT_TYPES.map((t) => (
-          <button
-            key={t.value}
-            type="button"
-            onClick={() => setInputType(t.value)}
-            className={`text-sm px-3 py-1.5 rounded-full border font-medium transition-colors ${
-              inputType === t.value
-                ? "bg-indigo-600 text-white border-indigo-600"
-                : "bg-white text-slate-600 border-slate-300 hover:border-indigo-400"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Optional CLI name */}
-      <input
-        type="text"
-        value={cliName}
-        onChange={(e) => setCLIName(e.target.value)}
-        placeholder="CLI name (optional — we'll detect it)"
-        className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-        maxLength={100}
-      />
-
-      {/* CLI content textarea */}
+      {/* Textarea */}
       <div className="relative">
-        <Textarea
+        <textarea
           value={cliText}
           onChange={(e) => setCLIText(e.target.value)}
-          placeholder={`Paste your CLI's ${
-            inputType === "help"
-              ? "--help output here…"
-              : inputType === "manpage"
-              ? "man page here…"
-              : inputType === "errors"
-              ? "error messages and sample output here…"
-              : "description or examples here…"
-          }`}
-          className="font-mono text-xs min-h-[220px] resize-y bg-slate-950 text-slate-100 border-slate-700 placeholder:text-slate-500 focus-visible:ring-indigo-400"
+          placeholder="$ paste your CLI's --help output, man page, or error messages here..."
+          className="w-full text-xs font-mono rounded p-4 resize-y min-h-[220px] focus:outline-none transition-colors"
+          style={{
+            background: "#050507",
+            border: "1px solid #3d3a39",
+            color: "#f2f2f2",
+            lineHeight: 1.6,
+          }}
+          onFocus={(e) => (e.currentTarget.style.borderColor = "#00d992")}
+          onBlur={(e) => (e.currentTarget.style.borderColor = "#3d3a39")}
           maxLength={MAX_CHARS}
         />
-        <span className="absolute bottom-2 right-3 text-xs text-slate-500 select-none">
-          {cliText.length.toLocaleString()} / {MAX_CHARS.toLocaleString()}
+        <span
+          className="absolute bottom-3 right-3 text-xs font-mono"
+          style={{ color: "#3d3a39" }}
+        >
+          {cliText.length.toLocaleString()}/{MAX_CHARS.toLocaleString()}
         </span>
       </div>
 
-      <Button
+      {/* Submit */}
+      <button
         type="submit"
         disabled={loading || cliText.length < 10}
-        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold h-11"
+        className="w-full h-11 rounded text-sm font-semibold transition-opacity font-mono"
+        style={{
+          background: loading || cliText.length < 10 ? "#1a1a1a" : "#101010",
+          color: loading || cliText.length < 10 ? "#3d3a39" : "#2fd6a1",
+          border: `1px solid ${loading || cliText.length < 10 ? "#3d3a39" : "#00d992"}`,
+          cursor: loading || cliText.length < 10 ? "not-allowed" : "pointer",
+        }}
       >
         {loading ? (
-          <span className="flex items-center gap-2">
-            <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-            Evaluating…
+          <span className="flex items-center justify-center gap-2">
+            <span
+              className="w-3.5 h-3.5 rounded-full border-2 animate-spin"
+              style={{ borderColor: "#3d3a39", borderTopColor: "#00d992" }}
+            />
+            evaluating...
           </span>
         ) : (
-          "Evaluate CLI"
+          "$ evaluate CLI"
         )}
-      </Button>
+      </button>
     </form>
   );
 }

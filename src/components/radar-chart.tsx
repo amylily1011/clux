@@ -14,12 +14,12 @@ interface Props {
 }
 
 const SHORT_LABELS: Record<string, string> = {
-  Learnability: "Learn",
-  "Error Tolerance": "Errors",
+  Learnability: "Learnability",
+  "Error Tolerance": "Error Tolerance",
   Efficiency: "Efficiency",
   Safety: "Safety",
-  "UNIX Compliance": "UNIX",
-  Pleasantness: "UX Feel",
+  "UNIX Compliance": "UNIX Compliance",
+  Pleasantness: "Pleasantness",
   Security: "Security",
   Accessibility: "A11y",
 };
@@ -33,39 +33,26 @@ export function CLUXRadarChart({ dimensions }: Props) {
 
   return (
     <div className="w-full">
-      {/* Screen-reader accessible table */}
-      <table className="sr-only">
-        <caption>CLUX dimension scores</caption>
-        <thead>
-          <tr>
-            <th>Dimension</th>
-            <th>Score (out of 100)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {dimensions.map((d) => (
-            <tr key={d.dimension}>
-              <td>{d.dimension}</td>
-              <td>{d.score}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <ResponsiveContainer width="100%" height={340} aria-hidden="true">
-        <RadarChart data={data} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
-          <PolarGrid stroke="#e2e8f0" />
+      <ResponsiveContainer width="100%" height={320} aria-hidden="true">
+        <RadarChart data={data} margin={{ top: 10, right: 40, bottom: 10, left: 40 }}>
+          <PolarGrid stroke="#3d3a39" strokeOpacity={0.8} />
           <PolarAngleAxis
             dataKey="dimension"
-            tick={{ fontSize: 12, fill: "#64748b", fontWeight: 500 }}
+            tick={{
+              fontSize: 11,
+              fill: "#8b949e",
+              fontFamily: "var(--font-geist-mono), monospace",
+              fontWeight: 500,
+            }}
           />
           <Radar
             name="CLUX"
             dataKey="score"
-            stroke="#6366f1"
-            fill="#6366f1"
-            fillOpacity={0.25}
-            strokeWidth={2}
+            stroke="#00d992"
+            fill="#00d992"
+            fillOpacity={0.12}
+            strokeWidth={1.5}
+            dot={{ fill: "#00d992", r: 3, strokeWidth: 0 }}
           />
         </RadarChart>
       </ResponsiveContainer>

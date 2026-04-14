@@ -66,21 +66,40 @@ Return ONLY a valid JSON object matching this exact structure. No prose, no mark
 
 {
   "cluxScore": <weighted_average_0_to_100>,
-  "cliName": "<detected or user-provided name>",
-  "overallSummary": "<2-3 sentence executive summary of the CLI's UX quality>",
+  "cliName": "<detected name>",
+  "overallSummary": "<2-3 sentence executive summary>",
   "dimensions": [
     {
       "dimension": "Learnability",
       "score": <0_to_100>,
       "summary": "<1-2 sentence assessment>",
-      "findings": ["<specific observation>", ...],
-      "recommendations": ["<actionable fix>", ...]
+      "findings": [
+        { "text": "<specific observation>", "confidence": <0_to_100> },
+        ...
+      ],
+      "recommendations": [
+        { "text": "<actionable fix>", "severity": "<critical|high|medium|low>" },
+        ...
+      ]
     },
     ... (all 8 dimensions in this order: Learnability, Error Tolerance, Efficiency, Safety, UNIX Compliance, Pleasantness, Security, Accessibility)
   ]
 }
 
 The cluxScore must equal: round(Learnability*0.18 + ErrorTolerance*0.16 + Efficiency*0.14 + Safety*0.13 + UNIXCompliance*0.12 + Pleasantness*0.10 + Security*0.10 + Accessibility*0.07)
+
+## Confidence scores for findings
+Rate each finding's confidence (0–100) based on how certain you are from the available evidence:
+- 90–100: Directly observed in the content — the evidence is explicit
+- 75–89: Strongly implied — highly likely based on patterns in the content
+- 50–74: Inferred — reasonable assumption but not directly confirmed
+- 0–49: Speculative — limited evidence, could go either way
+
+## Severity levels for recommendations
+- critical: Must fix before shipping — actively harmful to users or breaks core workflows
+- high: Should fix soon — significant UX friction or missing expected behavior
+- medium: Worth addressing — noticeable gap but workable
+- low: Nice to have — polish or edge case improvement
 
 ## Calibration Examples
 
@@ -109,21 +128,8 @@ Evaluate through the lens of a script, CI pipeline, or programmatic caller.
 - Flag anything that would harm human users as a secondary concern: note it as a cross-audience conflict in the relevant finding, e.g. "Terse error messages are fine for scripts but unhelpful for humans — consider --verbose error mode."`,
 };
 
-export function buildUserPrompt(
-  cliText: string,
-  cliName: string | undefined,
-  inputType: string,
-  audience: string
-): string {
-  const inputTypeLabel: Record<string, string> = {
-    help: "--help output",
-    manpage: "man page",
-    errors: "error messages and output samples",
-    general: "general description and examples",
-  };
-
-  return `Evaluate the following CLI based on its ${inputTypeLabel[inputType] ?? "documentation"}.
-${cliName ? `CLI name: ${cliName}` : "Detect the CLI name from the content."}
+export function buildUserPrompt(cliText: string, audience: string): string {
+  return `Evaluate the following CLI content. Detect the CLI name from the content itself.
 
 ${AUDIENCE_CONTEXT[audience] ?? AUDIENCE_CONTEXT.human}
 

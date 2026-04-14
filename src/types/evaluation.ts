@@ -1,9 +1,23 @@
+export type CLIAudience = "human" | "scripting";
+
+export type Severity = "critical" | "high" | "medium" | "low";
+
+export interface Finding {
+  text: string;
+  confidence: number; // 0–100
+}
+
+export interface Recommendation {
+  text: string;
+  severity: Severity;
+}
+
 export interface DimensionScore {
   dimension: string;
   score: number; // 0–100
   summary: string;
-  findings: string[];
-  recommendations: string[];
+  findings: Finding[];
+  recommendations: Recommendation[];
 }
 
 export interface EvaluationResult {
@@ -14,11 +28,7 @@ export interface EvaluationResult {
   audience: CLIAudience;
 }
 
-export type CLIAudience = "human" | "scripting";
-
 export interface EvaluationRequest {
   cliText: string;
-  cliName?: string;
-  inputType: "help" | "manpage" | "errors" | "general";
   audience: CLIAudience;
 }

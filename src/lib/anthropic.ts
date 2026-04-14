@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { EvaluationResultSchema } from "./schema";
+import { ClaudeResponseSchema } from "./schema";
 import { buildUserPrompt, SYSTEM_PROMPT } from "./prompt";
 import type { EvaluationResult } from "@/types/evaluation";
 
@@ -9,10 +9,8 @@ const client = new Anthropic({
 
 export async function evaluateCLI(
   cliText: string,
-  cliName: string | undefined,
-  inputType: string,
   audience: string
-): Promise<EvaluationResult> {
+): Promise<Omit<EvaluationResult, "audience">> {
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 4096,
@@ -21,7 +19,7 @@ export async function evaluateCLI(
     messages: [
       {
         role: "user",
-        content: buildUserPrompt(cliText, cliName, inputType, audience),
+        content: buildUserPrompt(cliText, audience),
       },
     ],
   });
@@ -44,5 +42,5 @@ export async function evaluateCLI(
     parsed = JSON.parse(stripped);
   }
 
-  return EvaluationResultSchema.parse(parsed);
+  return ClaudeResponseSchema.parse(parsed);
 }

@@ -46,10 +46,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { cliText, cliName, inputType, audience } = parsed.data;
+  const { cliText, audience } = parsed.data;
 
   try {
-    const result = await evaluateCLI(cliText, cliName, inputType, audience);
+    const result = await evaluateCLI(cliText, audience);
     return NextResponse.json({ ...result, audience });
   } catch (err) {
     console.error("Evaluation error:", err);
