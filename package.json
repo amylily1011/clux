@@ -8,8 +8,11 @@
     "start": "next start"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.69",
+    "@ai-sdk/google": "^3.0.63",
     "@anthropic-ai/sdk": "^0.89.0",
     "@base-ui/react": "^1.4.0",
+    "ai": "^6.0.161",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.8.0",

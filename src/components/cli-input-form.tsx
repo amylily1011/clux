@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { CLIAudience } from "@/types/evaluation";
+import type { CLIAudience, InputMode } from "@/types/evaluation";
 
 interface Props {
   onResult: (result: unknown) => void;
@@ -10,11 +10,7 @@ interface Props {
   setLoading: (v: boolean) => void;
 }
 
-const AUDIENCES: {
-  value: CLIAudience;
-  label: string;
-  description: string;
-}[] = [
+const AUDIENCES: { value: CLIAudience; label: string; description: string }[] = [
   {
     value: "human",
     label: "Human-first",
@@ -27,42 +23,49 @@ const AUDIENCES: {
   },
 ];
 
+const MODES: { value: InputMode; label: string; hint: string }[] = [
+  { value: "name",  label: "CLI Command", hint: "Type the command you'd run, e.g. git --help or docker --help" },
+  { value: "paste", label: "Paste",       hint: "Paste --help output or error messages" },
+];
+
 const MAX_CHARS = 12000;
 
 export function CLIInputForm({ onResult, onError, loading, setLoading }: Props) {
-  const [cliText, setCLIText] = useState("");
+  const [mode, setMode] = useState<InputMode>("name");
   const [audience, setAudience] = useState<CLIAudience>("human");
+  const [cliName, setCLIName] = useState("");
+  const [docsUrl, setDocsUrl] = useState("");
+  const [cliText, setCLIText] = useState("");
+
+  function isReady() {
+    if (mode === "name")  return cliName.trim().length > 0;
+    if (mode === "paste") return cliText.trim().length >= 10;
+    return false;
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!cliText.trim() || cliText.length < 10) {
-      onError("Please paste at least 10 characters of CLI content.");
-      return;
-    }
+    if (!isReady()) return;
 
     setLoading(true);
     onError("");
+
+    const payload =
+      mode === "name"
+        ? { inputMode: "name", cliName: cliName.trim(), audience, ...(docsUrl.trim() ? { docsUrl: docsUrl.trim() } : {}) }
+        : { inputMode: "paste", cliText: cliText.slice(0, MAX_CHARS), audience };
 
     try {
       const res = await fetch("/api/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cliText: cliText.slice(0, MAX_CHARS),
-          audience,
-        }),
+        body: JSON.stringify(payload),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        onError(data.error ?? "Something went wrong. Please try again.");
-        return;
-      }
-
+      if (!res.ok) { onError(data.error ?? "Something went wrong."); return; }
       onResult(data);
     } catch {
-      onError("Network error. Please check your connection and try again.");
+      onError("Network error. Please check your connection.");
     } finally {
       setLoading(false);
     }
@@ -70,12 +73,9 @@ export function CLIInputForm({ onResult, onError, loading, setLoading }: Props) 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Audience selector */}
+      {/* Audience */}
       <div className="space-y-2">
-        <label
-          className="text-xs font-mono uppercase tracking-widest"
-          style={{ color: "#8b949e", letterSpacing: "2px" }}
-        >
+        <label className="text-xs font-mono uppercase" style={{ color: "#8b949e", letterSpacing: "2px" }}>
           Primary audience
         </label>
         <div className="grid grid-cols-2 gap-3">
@@ -87,18 +87,11 @@ export function CLIInputForm({ onResult, onError, loading, setLoading }: Props) 
               className="text-left p-4 rounded-lg transition-all"
               style={{
                 background: "#050507",
-                border: audience === a.value
-                  ? "2px solid #00d992"
-                  : "1px solid #3d3a39",
-                boxShadow: audience === a.value
-                  ? "rgba(0, 217, 146, 0.08) 0px 0px 15px"
-                  : "none",
+                border: audience === a.value ? "2px solid #00d992" : "1px solid #3d3a39",
+                boxShadow: audience === a.value ? "rgba(0,217,146,0.08) 0px 0px 15px" : "none",
               }}
             >
-              <div
-                className="font-semibold text-sm"
-                style={{ color: audience === a.value ? "#00d992" : "#f2f2f2" }}
-              >
+              <div className="font-semibold text-sm" style={{ color: audience === a.value ? "#00d992" : "#f2f2f2" }}>
                 {a.label}
               </div>
               <div className="text-xs mt-1 leading-snug" style={{ color: "#8b949e" }}>
@@ -109,54 +102,98 @@ export function CLIInputForm({ onResult, onError, loading, setLoading }: Props) 
         </div>
       </div>
 
-      {/* Textarea */}
-      <div className="relative">
-        <textarea
-          value={cliText}
-          onChange={(e) => setCLIText(e.target.value)}
-          placeholder="$ paste your CLI's --help output, man page, or error messages here..."
-          className="w-full text-xs font-mono rounded p-4 resize-y min-h-[220px] focus:outline-none transition-colors"
-          style={{
-            background: "#050507",
-            border: "1px solid #3d3a39",
-            color: "#f2f2f2",
-            lineHeight: 1.6,
-          }}
-          onFocus={(e) => (e.currentTarget.style.borderColor = "#00d992")}
-          onBlur={(e) => (e.currentTarget.style.borderColor = "#3d3a39")}
-          maxLength={MAX_CHARS}
-        />
-        <span
-          className="absolute bottom-3 right-3 text-xs font-mono"
-          style={{ color: "#3d3a39" }}
-        >
-          {cliText.length.toLocaleString()}/{MAX_CHARS.toLocaleString()}
-        </span>
+      {/* Input mode tabs */}
+      <div className="space-y-3">
+        <div className="flex gap-1 p-1 rounded-lg" style={{ background: "#050507", border: "1px solid #3d3a39" }}>
+          {MODES.map((m) => (
+            <button
+              key={m.value}
+              type="button"
+              onClick={() => setMode(m.value)}
+              className="flex-1 text-sm py-2 rounded-md font-mono transition-all"
+              style={{
+                background: mode === m.value ? "#101010" : "transparent",
+                color: mode === m.value ? "#2fd6a1" : "#8b949e",
+                border: mode === m.value ? "1px solid #3d3a39" : "1px solid transparent",
+              }}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Hint */}
+        <p className="text-xs font-mono" style={{ color: "#3d3a39" }}>
+          {MODES.find((m) => m.value === mode)?.hint}
+        </p>
+
+        {/* CLI Command input + optional docs URL */}
+        {mode === "name" && (
+          <div className="space-y-2">
+            <input
+              type="text"
+              value={cliName}
+              onChange={(e) => setCLIName(e.target.value)}
+              placeholder="git --help"
+              autoFocus
+              className="w-full text-sm px-4 py-3 rounded font-mono focus:outline-none"
+              style={{ background: "#050507", border: "1px solid #3d3a39", color: "#f2f2f2", fontSize: "1rem" }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "#00d992")}
+              onBlur={(e) => (e.currentTarget.style.borderColor = "#3d3a39")}
+            />
+            <input
+              type="url"
+              value={docsUrl}
+              onChange={(e) => setDocsUrl(e.target.value)}
+              placeholder="Docs URL (optional) — paste man page, README, or docs site"
+              className="w-full text-xs px-4 py-2.5 rounded font-mono focus:outline-none"
+              style={{ background: "#050507", border: "1px solid #3d3a39", color: "#8b949e" }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "#00d992")}
+              onBlur={(e) => (e.currentTarget.style.borderColor = "#3d3a39")}
+            />
+          </div>
+        )}
+
+        {/* Paste textarea */}
+        {mode === "paste" && (
+          <div className="relative">
+            <textarea
+              value={cliText}
+              onChange={(e) => setCLIText(e.target.value)}
+              placeholder="$ paste --help output here..."
+              autoFocus
+              className="w-full text-xs font-mono rounded p-4 resize-y min-h-[180px] focus:outline-none"
+              style={{ background: "#050507", border: "1px solid #3d3a39", color: "#f2f2f2", lineHeight: 1.6 }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "#00d992")}
+              onBlur={(e) => (e.currentTarget.style.borderColor = "#3d3a39")}
+              maxLength={MAX_CHARS}
+            />
+            <span className="absolute bottom-3 right-3 text-xs font-mono" style={{ color: "#3d3a39" }}>
+              {cliText.length.toLocaleString()}/{MAX_CHARS.toLocaleString()}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Submit */}
       <button
         type="submit"
-        disabled={loading || cliText.length < 10}
-        className="w-full h-11 rounded text-sm font-semibold transition-opacity font-mono"
+        disabled={loading || !isReady()}
+        className="w-full h-11 rounded text-sm font-semibold font-mono transition-opacity"
         style={{
-          background: loading || cliText.length < 10 ? "#1a1a1a" : "#101010",
-          color: loading || cliText.length < 10 ? "#3d3a39" : "#2fd6a1",
-          border: `1px solid ${loading || cliText.length < 10 ? "#3d3a39" : "#00d992"}`,
-          cursor: loading || cliText.length < 10 ? "not-allowed" : "pointer",
+          background: "#101010",
+          color: loading || !isReady() ? "#3d3a39" : "#2fd6a1",
+          border: `1px solid ${loading || !isReady() ? "#3d3a39" : "#00d992"}`,
+          cursor: loading || !isReady() ? "not-allowed" : "pointer",
         }}
       >
         {loading ? (
           <span className="flex items-center justify-center gap-2">
-            <span
-              className="w-3.5 h-3.5 rounded-full border-2 animate-spin"
-              style={{ borderColor: "#3d3a39", borderTopColor: "#00d992" }}
-            />
+            <span className="w-3.5 h-3.5 rounded-full border-2 animate-spin"
+              style={{ borderColor: "#3d3a39", borderTopColor: "#00d992" }} />
             evaluating...
           </span>
-        ) : (
-          "$ evaluate CLI"
-        )}
+        ) : "$ evaluate"}
       </button>
     </form>
   );

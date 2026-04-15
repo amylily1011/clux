@@ -28,7 +28,12 @@ export interface EvaluationResult {
   audience: CLIAudience;
 }
 
+export type InputMode = "name" | "paste";
+
 export interface EvaluationRequest {
-  cliText: string;
+  inputMode: InputMode;
+  cliName?: string;   // name mode
+  docsUrl?: string;   // optional reference URL (name mode only)
+  cliText?: string;   // paste mode
   audience: CLIAudience;
 }

@@ -282,7 +282,7 @@ export default function Home() {
       <footer style={{ borderTop: "1px solid #3d3a39" }} className="mt-16">
         <div className="max-w-screen-xl mx-auto px-8 py-6 flex items-center justify-between">
           <span className="text-xs font-mono" style={{ color: "#8b949e" }}>
-            CLUX · Built with Claude
+            CLUX
           </span>
           <a
             href="https://github.com/amylily1011/clux"
