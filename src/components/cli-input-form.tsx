@@ -136,21 +136,26 @@ export function CLIInputForm({ onResult, onError, loading, setLoading }: Props) 
               onChange={(e) => setCLIName(e.target.value)}
               placeholder="git --help"
               autoFocus
-              className="w-full text-sm px-4 py-3 rounded font-mono focus:outline-none"
+              className="w-full text-sm px-4 py-3 rounded font-mono focus:outline-none placeholder:text-[#3d3a39]"
               style={{ background: "#050507", border: "1px solid #3d3a39", color: "#f2f2f2", fontSize: "1rem" }}
               onFocus={(e) => (e.currentTarget.style.borderColor = "#00d992")}
               onBlur={(e) => (e.currentTarget.style.borderColor = "#3d3a39")}
             />
-            <input
-              type="url"
-              value={docsUrl}
-              onChange={(e) => setDocsUrl(e.target.value)}
-              placeholder="Docs URL (optional) — paste man page, README, or docs site"
-              className="w-full text-xs px-4 py-2.5 rounded font-mono focus:outline-none"
-              style={{ background: "#050507", border: "1px solid #3d3a39", color: "#8b949e" }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "#00d992")}
-              onBlur={(e) => (e.currentTarget.style.borderColor = "#3d3a39")}
-            />
+            <div className="space-y-1">
+              <label className="text-xs font-mono" style={{ color: "#8b949e" }}>
+                Docs URL <span style={{ color: "#3d3a39" }}>(optional) - add a doc reference for more accurate results</span>
+              </label>
+              <input
+                type="url"
+                value={docsUrl}
+                onChange={(e) => setDocsUrl(e.target.value)}
+                placeholder="https://man page, README, or docs site"
+                className="w-full text-xs px-4 py-2.5 rounded font-mono focus:outline-none"
+                style={{ background: "#050507", border: "1px solid #3d3a39", color: "#8b949e" }}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "#00d992")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "#3d3a39")}
+              />
+            </div>
           </div>
         )}
 

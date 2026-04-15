@@ -138,9 +138,22 @@ export async function POST(req: NextRequest) {
 
   } catch (err) {
     console.error("Evaluation error:", err);
-    return NextResponse.json(
-      { error: "Evaluation failed. Please try again." },
-      { status: 500 }
-    );
+
+    const message = err instanceof Error ? err.message : String(err);
+
+    let userError = "Evaluation failed. Please try again.";
+    if (message.includes("API key") || message.includes("api_key") || message.includes("401") || message.includes("403")) {
+      userError = "Invalid or missing API key. Check your AI provider credentials.";
+    } else if (message.includes("429") || message.includes("quota") || message.includes("rate")) {
+      userError = "AI provider rate limit hit. Wait a moment and try again.";
+    } else if (message.includes("timeout") || message.includes("ETIMEDOUT")) {
+      userError = "Request timed out. The AI provider took too long to respond.";
+    } else if (message.includes("model") || message.includes("404")) {
+      userError = `Model not found or unavailable. Check AI_MODEL in your config.`;
+    } else if (message.includes("JSON") || message.includes("parse")) {
+      userError = "The AI returned an unexpected response format. Try again.";
+    }
+
+    return NextResponse.json({ error: userError }, { status: 500 });
   }
 }

@@ -9,7 +9,7 @@ const PROVIDER = (process.env.AI_PROVIDER ?? "anthropic").toLowerCase();
 
 const MODELS: Record<string, string> = {
   anthropic: process.env.AI_MODEL ?? "claude-sonnet-4-6",
-  google:    process.env.AI_MODEL ?? "gemini-2.5-pro-exp-03-25",
+  google:    process.env.AI_MODEL ?? "gemini-2.0-flash",
 };
 
 function getModel() {
