@@ -4,7 +4,7 @@
 
 Paste your CLI's `--help` output or man page. CLUX evaluates it across 8 heuristic dimensions and gives you a **CLUX Score** — a single number that shows how usable your CLI actually is, and what to fix first.
 
-→ **[Try it live](https://clux-eta.vercel.app)
+→ [Try it live](https://clux-eta.vercel.app)
 
 ---
 
