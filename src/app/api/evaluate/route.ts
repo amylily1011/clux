@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { EvaluationRequestSchema } from "@/lib/schema";
-import { evaluateByName, evaluateByContent, evaluateByConvention } from "@/lib/ai";
+import { evaluateByContent, evaluateByConvention } from "@/lib/ai";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isAllowedOrigin } from "@/lib/origin";
-import { isSafeUrl, fetchViaJina } from "@/lib/url";
 import { sanitizeContent } from "@/lib/sanitize";
+import { prescreenCLIContent } from "@/lib/prescreen";
 
 export async function POST(req: NextRequest) {
   if (!isAllowedOrigin(req)) {
@@ -12,9 +12,11 @@ export async function POST(req: NextRequest) {
   }
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const { allowed, reason } = await checkRateLimit(ip, "evaluate");
-  if (!allowed) {
-    return NextResponse.json({ error: reason }, { status: 429 });
+  if (process.env.NODE_ENV !== "development") {
+    const { allowed, reason } = await checkRateLimit(ip, "evaluate");
+    if (!allowed) {
+      return NextResponse.json({ error: reason }, { status: 429 });
+    }
   }
 
   let body: unknown;
@@ -34,20 +36,9 @@ export async function POST(req: NextRequest) {
   try {
     let result;
 
-    if (data.inputMode === "name") {
-      let docsContent: string | undefined;
-      if (data.docsUrl) {
-        const check = isSafeUrl(data.docsUrl);
-        if (!check.safe) return NextResponse.json({ error: check.reason }, { status: 400 });
-        try {
-          docsContent = await fetchViaJina(data.docsUrl);
-        } catch {
-          console.warn("Docs URL fetch failed, proceeding without it:", data.docsUrl);
-        }
-      }
-      result = await evaluateByName(data.cliName, data.audience, docsContent);
-
-    } else if (data.inputMode === "paste") {
+    if (data.inputMode === "paste") {
+      const pre = prescreenCLIContent(data.cliText);
+      if (!pre.ok) return NextResponse.json({ error: pre.reason }, { status: 400 });
       result = await evaluateByContent(sanitizeContent(data.cliText), data.audience);
 
     } else {

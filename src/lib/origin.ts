@@ -14,5 +14,8 @@ export function isAllowedOrigin(req: NextRequest): boolean {
 
   if (!check) return false;
 
+  // Allow all Vercel preview deployments for this project
+  if (check.includes("vercel.app")) return true;
+
   return ALLOWED_ORIGINS.some((allowed) => check.startsWith(allowed));
 }

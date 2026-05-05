@@ -25,7 +25,7 @@ const AUDIENCES: { value: CLIAudience; label: string; description: string }[] = 
 ];
 
 const MODES: { value: InputMode; label: string; hint: string }[] = [
-  { value: "paste",      label: "CLI Command",  hint: "Paste the output of one command (e.g. ppa --help). One command at a time." },
+  { value: "paste",      label: "CLI Command",  hint: "Type a command name (e.g. multipass find) or paste its --help output for a deeper analysis." },
   { value: "convention", label: "Convention",   hint: "Check one command against your org's CLI design rules" },
 ];
 
@@ -38,7 +38,7 @@ export function CLIInputForm({ onResult, onError, loading, setLoading, onModeCha
   const [conventionRules, setConventionRules] = useState("");
 
   function isReady() {
-    if (mode === "paste")      return cliText.trim().length >= 10;
+    if (mode === "paste")      return cliText.trim().length >= 2;
     if (mode === "convention") return conventionRules.trim().length >= 10 && cliText.trim().length >= 10;
     return false;
   }
@@ -136,7 +136,7 @@ export function CLIInputForm({ onResult, onError, loading, setLoading, onModeCha
             <textarea
               value={cliText}
               onChange={(e) => setCLIText(e.target.value)}
-              placeholder="$ ppa --help&#10;&#10;Paste the input and output of one command here..."
+              placeholder="multipass find&#10;&#10;— or paste the output of a command —&#10;&#10;$ ppa --help&#10;..."
               autoFocus
               className="w-full text-xs font-mono rounded p-4 resize-y min-h-[180px] focus:outline-none"
               style={{ background: "#050507", border: "1px solid #3d3a39", color: "#f2f2f2", lineHeight: 1.6 }}

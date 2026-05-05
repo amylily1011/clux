@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { CLIInputForm } from "@/components/cli-input-form";
 import { ScoreCard } from "@/components/score-card";
 import { DimensionFeedback } from "@/components/dimension-feedback";
@@ -140,15 +141,16 @@ export default function Home() {
       >
         <div className="max-w-screen-xl mx-auto px-4 md:px-8 py-3 md:py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button
+            <Link
+              href="/"
               onClick={handleReset}
               className="text-2xl font-black tracking-tighter glow-emerald transition-opacity"
-              style={{ color: "#00d992", fontFamily: "system-ui" }}
+              style={{ color: "#00d992", fontFamily: "system-ui", textDecoration: "none" }}
               onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.8")}
               onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
             >
               CLUX
-            </button>
+            </Link>
             <span
               className="hidden sm:inline text-xs font-mono px-2 py-0.5 rounded"
               style={{ color: "#8b949e", border: "1px solid #3d3a39", background: "#101010" }}

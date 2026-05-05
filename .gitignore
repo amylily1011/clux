@@ -44,3 +44,4 @@ next-env.d.ts
 # gstack planning artifacts
 amylily-*.md
 20[0-9][0-9]-*.md
+.env*.local

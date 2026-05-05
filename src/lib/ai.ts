@@ -1,27 +1,32 @@
 import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
+import { moonshotai } from "@ai-sdk/moonshotai";
 import { ClaudeResponseSchema, ConventionResponseSchema } from "./schema";
-import { buildNamePrompt, buildContentPrompt, buildConventionPrompt, SYSTEM_PROMPT } from "./prompt";
+import { buildContentPrompt, buildConventionPrompt, SYSTEM_PROMPT } from "./prompt";
 import type { EvaluationResult } from "@/types/evaluation";
 
 const PROVIDER = (process.env.AI_PROVIDER ?? "anthropic").toLowerCase();
 
-const MODELS: Record<string, string> = {
-  anthropic: process.env.AI_MODEL ?? "claude-sonnet-4-6",
-  google:    process.env.AI_MODEL ?? "gemini-2.0-flash",
+const DEFAULTS: Record<string, string> = {
+  anthropic: "claude-haiku-4-5-20251001",
+  google:    "gemini-2.5-flash",
+  kimi:      "kimi-k2.6",
 };
 
 function getModel() {
-  const modelId = MODELS[PROVIDER] ?? MODELS.anthropic;
-  if (PROVIDER === "google") return google(modelId);
+  const modelId = process.env.AI_MODEL ?? DEFAULTS[PROVIDER] ?? DEFAULTS.anthropic;
+  if (PROVIDER === "google")    return google(modelId);
+  if (PROVIDER === "kimi")      return moonshotai(modelId);
   return anthropic(modelId);
 }
+
+const TEMPERATURE = PROVIDER === "kimi" ? 1 : 0;
 
 async function runEval(userPrompt: string): Promise<Omit<EvaluationResult, "audience">> {
   const { text } = await generateText({
     model: getModel(),
-    temperature: 0,
+    temperature: TEMPERATURE,
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user",   content: userPrompt },
@@ -44,10 +49,6 @@ async function runEval(userPrompt: string): Promise<Omit<EvaluationResult, "audi
   return ClaudeResponseSchema.parse(parsed);
 }
 
-export function evaluateByName(cliName: string, audience: string, docsContent?: string) {
-  return runEval(buildNamePrompt(cliName, audience, docsContent));
-}
-
 export function evaluateByContent(content: string, audience: string) {
   return runEval(buildContentPrompt(content, audience));
 }
@@ -55,7 +56,7 @@ export function evaluateByContent(content: string, audience: string) {
 export async function evaluateByConvention(conventionRules: string, cliText: string, audience: string) {
   const { text } = await generateText({
     model: getModel(),
-    temperature: 0,
+    temperature: TEMPERATURE,
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user",   content: buildConventionPrompt(conventionRules, cliText, audience) },

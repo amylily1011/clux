@@ -12,6 +12,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.69",
     "@ai-sdk/google": "^3.0.63",
+    "@ai-sdk/moonshotai": "^2.0.21",
     "@anthropic-ai/sdk": "^0.89.0",
     "@base-ui/react": "^1.4.0",
     "@supabase/ssr": "^0.10.2",

@@ -61,12 +61,6 @@ export const EvaluationResultSchema = ClaudeResponseSchema.extend({
 
 export const EvaluationRequestSchema = z.discriminatedUnion("inputMode", [
   z.object({
-    inputMode: z.literal("name"),
-    cliName: z.string().min(1).max(100),
-    docsUrl: z.string().url().optional(),
-    audience: z.enum(["human", "scripting"]),
-  }),
-  z.object({
     inputMode: z.literal("paste"),
     cliText: z.string().min(10).max(12000),
     audience: z.enum(["human", "scripting"]),
