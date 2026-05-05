@@ -8,6 +8,7 @@ interface Props {
   onError: (msg: string) => void;
   loading: boolean;
   setLoading: (v: boolean) => void;
+  onModeChange?: (mode: InputMode) => void;
 }
 
 const AUDIENCES: { value: CLIAudience; label: string; description: string }[] = [
@@ -24,22 +25,25 @@ const AUDIENCES: { value: CLIAudience; label: string; description: string }[] = 
 ];
 
 const MODES: { value: InputMode; label: string; hint: string }[] = [
-  { value: "name",  label: "CLI Command", hint: "Type the command you'd run, e.g. git --help or docker --help" },
-  { value: "paste", label: "Paste",       hint: "Paste --help output or error messages" },
+  { value: "name",       label: "CLI Command", hint: "Evaluate one command — e.g. git commit, docker run, ppa --help" },
+  { value: "paste",      label: "Paste",       hint: "Paste the output of one command (e.g. ppa --help). One command at a time." },
+  { value: "convention", label: "Convention",  hint: "Check one command against your org's CLI design rules" },
 ];
 
 const MAX_CHARS = 12000;
 
-export function CLIInputForm({ onResult, onError, loading, setLoading }: Props) {
+export function CLIInputForm({ onResult, onError, loading, setLoading, onModeChange }: Props) {
   const [mode, setMode] = useState<InputMode>("name");
   const [audience, setAudience] = useState<CLIAudience>("human");
   const [cliName, setCLIName] = useState("");
   const [docsUrl, setDocsUrl] = useState("");
   const [cliText, setCLIText] = useState("");
+  const [conventionRules, setConventionRules] = useState("");
 
   function isReady() {
-    if (mode === "name")  return cliName.trim().length > 0;
-    if (mode === "paste") return cliText.trim().length >= 10;
+    if (mode === "name")       return cliName.trim().length > 0;
+    if (mode === "paste")      return cliText.trim().length >= 10;
+    if (mode === "convention") return conventionRules.trim().length >= 10 && cliText.trim().length >= 10;
     return false;
   }
 
@@ -53,7 +57,9 @@ export function CLIInputForm({ onResult, onError, loading, setLoading }: Props) 
     const payload =
       mode === "name"
         ? { inputMode: "name", cliName: cliName.trim(), audience, ...(docsUrl.trim() ? { docsUrl: docsUrl.trim() } : {}) }
-        : { inputMode: "paste", cliText: cliText.slice(0, MAX_CHARS), audience };
+        : mode === "paste"
+        ? { inputMode: "paste", cliText: cliText.slice(0, MAX_CHARS), audience }
+        : { inputMode: "convention", conventionRules: conventionRules.slice(0, MAX_CHARS), cliText: cliText.slice(0, MAX_CHARS), audience };
 
     try {
       const res = await fetch("/api/evaluate", {
@@ -109,7 +115,10 @@ export function CLIInputForm({ onResult, onError, loading, setLoading }: Props) 
             <button
               key={m.value}
               type="button"
-              onClick={() => setMode(m.value)}
+              onClick={() => {
+                setMode(m.value);
+                onModeChange?.(m.value);
+              }}
               className="flex-1 text-sm py-2 rounded-md font-mono transition-all"
               style={{
                 background: mode === m.value ? "#101010" : "transparent",
@@ -165,7 +174,7 @@ export function CLIInputForm({ onResult, onError, loading, setLoading }: Props) 
             <textarea
               value={cliText}
               onChange={(e) => setCLIText(e.target.value)}
-              placeholder="$ paste --help output here..."
+              placeholder="$ ppa --help&#10;&#10;Paste the output of one command here..."
               autoFocus
               className="w-full text-xs font-mono rounded p-4 resize-y min-h-[180px] focus:outline-none"
               style={{ background: "#050507", border: "1px solid #3d3a39", color: "#f2f2f2", lineHeight: 1.6 }}
@@ -176,6 +185,43 @@ export function CLIInputForm({ onResult, onError, loading, setLoading }: Props) 
             <span className="absolute bottom-3 right-3 text-xs font-mono" style={{ color: "#3d3a39" }}>
               {cliText.length.toLocaleString()}/{MAX_CHARS.toLocaleString()}
             </span>
+          </div>
+        )}
+
+        {/* Convention inputs */}
+        {mode === "convention" && (
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-mono" style={{ color: "#8b949e" }}>
+                Org conventions <span style={{ color: "#3d3a39" }}>(plain text, YAML, or JSON)</span>
+              </label>
+              <textarea
+                value={conventionRules}
+                onChange={(e) => setConventionRules(e.target.value)}
+                placeholder={"e.g.\n- All commands must use verb-noun format\n- Destructive commands require --dry-run\n- Credentials must come from env vars, not flags\n- All list commands must support --json output"}
+                autoFocus
+                className="w-full text-xs font-mono rounded p-4 resize-y min-h-[140px] focus:outline-none"
+                style={{ background: "#050507", border: "1px solid #3d3a39", color: "#f2f2f2", lineHeight: 1.6 }}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "#00d992")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "#3d3a39")}
+                maxLength={MAX_CHARS}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-mono" style={{ color: "#8b949e" }}>
+                CLI command or help output to check
+              </label>
+              <textarea
+                value={cliText}
+                onChange={(e) => setCLIText(e.target.value)}
+                placeholder="$ paste the command help output here..."
+                className="w-full text-xs font-mono rounded p-4 resize-y min-h-[120px] focus:outline-none"
+                style={{ background: "#050507", border: "1px solid #3d3a39", color: "#f2f2f2", lineHeight: 1.6 }}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "#00d992")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "#3d3a39")}
+                maxLength={MAX_CHARS}
+              />
+            </div>
           </div>
         )}
       </div>

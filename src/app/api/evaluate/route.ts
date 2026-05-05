@@ -1,98 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { EvaluationRequestSchema } from "@/lib/schema";
-import { evaluateByName, evaluateByContent } from "@/lib/ai";
-
-// ── Rate limiting ────────────────────────────────────────────────────────────
-
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT = 10;
-const WINDOW_MS = 60 * 60 * 1000;
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || entry.resetAt < now) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + WINDOW_MS });
-    return false;
-  }
-  if (entry.count >= RATE_LIMIT) return true;
-  entry.count++;
-  return false;
-}
-
-// ── URL security ─────────────────────────────────────────────────────────────
-
-const BLOCKED_HOSTS = [
-  /^localhost$/i,
-  /^127\./,
-  /^10\./,
-  /^192\.168\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^0\./,
-  /^::1$/,
-  /^metadata\.google\.internal$/i,
-  /^169\.254\./,            // AWS/GCP metadata
-];
-
-function isSafeUrl(raw: string): { safe: boolean; reason?: string } {
-  let url: URL;
-  try { url = new URL(raw); }
-  catch { return { safe: false, reason: "Invalid URL format." }; }
-
-  if (!["http:", "https:"].includes(url.protocol)) {
-    return { safe: false, reason: "Only http and https URLs are allowed." };
-  }
-
-  const host = url.hostname.toLowerCase();
-  if (BLOCKED_HOSTS.some((pattern) => pattern.test(host))) {
-    return { safe: false, reason: "That URL points to a private or internal address." };
-  }
-
-  return { safe: true };
-}
-
-// ── Content sanitisation (basic prompt-injection mitigation) ──────────────────
-
-function sanitizeContent(text: string): string {
-  return text
-    // Strip anything that looks like a system/instruction override
-    .replace(/\[SYSTEM\]/gi, "[blocked]")
-    .replace(/\bignore\s+(all\s+)?(previous|above|prior)\s+instructions?\b/gi, "[blocked]")
-    .replace(/you\s+are\s+now\s+a/gi, "[blocked]")
-    .replace(/new\s+instructions?:/gi, "[blocked]")
-    .replace(/---+\s*(system|prompt|instruction)/gi, "[blocked]")
-    // Collapse excessive whitespace
-    .replace(/\s{3,}/g, "\n\n")
-    .trim()
-    .slice(0, 12000);
-}
-
-// ── Jina AI Reader (sandboxed URL fetching) ───────────────────────────────────
-
-async function fetchViaJina(url: string): Promise<string> {
-  const res = await fetch(`https://r.jina.ai/${url}`, {
-    headers: {
-      "Accept": "text/plain",
-      "User-Agent": "CLUX-Evaluator/1.0",
-      "X-No-Cache": "true",
-    },
-    signal: AbortSignal.timeout(15000),
-  });
-
-  if (!res.ok) throw new Error(`Jina fetch failed: ${res.status}`);
-  const text = await res.text();
-  return sanitizeContent(text);
-}
-
-// ── Route ─────────────────────────────────────────────────────────────────────
+import { evaluateByName, evaluateByContent, evaluateByConvention } from "@/lib/ai";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { isAllowedOrigin } from "@/lib/origin";
+import { isSafeUrl, fetchViaJina } from "@/lib/url";
+import { sanitizeContent } from "@/lib/sanitize";
 
 export async function POST(req: NextRequest) {
+  if (!isAllowedOrigin(req)) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (isRateLimited(ip)) {
-    return NextResponse.json(
-      { error: "Rate limit exceeded. You can run up to 10 evaluations per hour." },
-      { status: 429 }
-    );
+  const { allowed, reason } = await checkRateLimit(ip, "evaluate");
+  if (!allowed) {
+    return NextResponse.json({ error: reason }, { status: 429 });
   }
 
   let body: unknown;
@@ -114,31 +36,44 @@ export async function POST(req: NextRequest) {
 
     if (data.inputMode === "name") {
       let docsContent: string | undefined;
-
       if (data.docsUrl) {
         const check = isSafeUrl(data.docsUrl);
-        if (!check.safe) {
-          return NextResponse.json({ error: check.reason }, { status: 400 });
-        }
+        if (!check.safe) return NextResponse.json({ error: check.reason }, { status: 400 });
         try {
           docsContent = await fetchViaJina(data.docsUrl);
         } catch {
-          // Non-fatal — evaluate without docs and surface a warning
           console.warn("Docs URL fetch failed, proceeding without it:", data.docsUrl);
         }
       }
-
       result = await evaluateByName(data.cliName, data.audience, docsContent);
 
-    } else {
+    } else if (data.inputMode === "paste") {
       result = await evaluateByContent(sanitizeContent(data.cliText), data.audience);
+
+    } else {
+      result = await evaluateByConvention(
+        sanitizeContent(data.conventionRules),
+        sanitizeContent(data.cliText),
+        data.audience
+      );
+
+      if (result.complianceItems && result.complianceItems.length > 0) {
+        const total  = result.complianceItems.length;
+        const passed = result.complianceItems.filter((i: { passed: boolean }) => i.passed).length;
+        const failed = total - passed;
+        const countSentence =
+          failed === 0
+            ? `All ${total} org rules pass.`
+            : `${passed} of ${total} org rule${total > 1 ? "s" : ""} pass${passed === 1 ? "es" : ""}, ${failed} fail${failed === 1 ? "s" : ""}.`;
+        const rest = result.overallSummary.replace(/^[^.!?]+[.!?]\s*/, "");
+        result = { ...result, overallSummary: `${countSentence}${rest ? " " + rest : ""}` };
+      }
     }
 
     return NextResponse.json({ ...result, audience: data.audience });
 
   } catch (err) {
     console.error("Evaluation error:", err);
-
     const message = err instanceof Error ? err.message : String(err);
 
     let userError = "Evaluation failed. Please try again.";
@@ -149,7 +84,7 @@ export async function POST(req: NextRequest) {
     } else if (message.includes("timeout") || message.includes("ETIMEDOUT")) {
       userError = "Request timed out. The AI provider took too long to respond.";
     } else if (message.includes("model") || message.includes("404")) {
-      userError = `Model not found or unavailable. Check AI_MODEL in your config.`;
+      userError = "Model not found or unavailable. Check AI_MODEL in your config.";
     } else if (message.includes("JSON") || message.includes("parse")) {
       userError = "The AI returned an unexpected response format. Try again.";
     }

@@ -5,9 +5,14 @@ import dynamic from "next/dynamic";
 import { CLIInputForm } from "@/components/cli-input-form";
 import { ScoreCard } from "@/components/score-card";
 import { DimensionFeedback } from "@/components/dimension-feedback";
+import { ConventionChecklist } from "@/components/convention-checklist";
+import { HistorySidebar } from "@/components/history-sidebar";
+import type { InputMode } from "@/types/evaluation";
 import { EvaluationResultSchema } from "@/lib/schema";
 import { encodeResult, decodeResult } from "@/lib/share";
 import type { EvaluationResult } from "@/types/evaluation";
+import { saveToHistory } from "@/lib/history";
+import type { HistoryItem } from "@/lib/history";
 
 const CLUXRadarChart = dynamic(
   () => import("@/components/radar-chart").then((m) => m.CLUXRadarChart),
@@ -30,29 +35,76 @@ const DIMENSIONS = [
   { icon: "♿", label: "Accessibility" },
 ];
 
+function shortId(): string {
+  return Math.random().toString(36).slice(2, 9);
+}
+
 export default function Home() {
   const [result, setResult] = useState<EvaluationResult | null>(null);
+  const [inputMode, setInputMode] = useState<InputMode>("name");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [shareLabel, setShareLabel] = useState<"share ↗" | "copying..." | "✓ copied">("share ↗");
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     const hash = window.location.hash.slice(1);
-    if (hash) {
-      const decoded = decodeResult(hash);
-      if (decoded) setResult(decoded);
+    if (!hash) return;
+
+    if (hash.startsWith("s/")) {
+      const id = hash.slice(2);
+      fetch(`/api/share/${id}`)
+        .then((r) => r.json())
+        .then((data) => {
+          const parsed = EvaluationResultSchema.safeParse(data);
+          if (parsed.success) setResult(parsed.data);
+        })
+        .catch(() => {});
+      return;
     }
+
+    const decoded = decodeResult(hash);
+    if (decoded) setResult(decoded);
   }, []);
 
-  function handleResult(data: unknown) {
+  function handleResult(data: unknown, mode?: InputMode) {
     const parsed = EvaluationResultSchema.safeParse(data);
     if (!parsed.success) {
       setError("Received an unexpected response format. Please try again.");
       return;
     }
-    setResult(parsed.data);
-    const encoded = encodeResult(parsed.data);
+    const ev = parsed.data;
+    setResult(ev);
+
+    const item: HistoryItem = {
+      id: shortId(),
+      cliName: ev.cliName,
+      score: ev.cluxScore,
+      inputMode: mode ?? inputMode,
+      createdAt: Date.now(),
+      result: ev,
+    };
+    saveToHistory(item);
+
+    const encoded = encodeResult(ev);
     window.history.replaceState(null, "", `#${encoded}`);
+
+    fetch("/api/share", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(ev),
+    })
+      .then((r) => r.json())
+      .then(({ id }) => {
+        if (id) window.history.replaceState(null, "", `#s/${id}`);
+      })
+      .catch(() => {});
+  }
+
+  function handleRestore(item: HistoryItem) {
+    setResult(item.result);
+    setInputMode(item.inputMode);
+    window.history.replaceState(null, "", window.location.pathname);
   }
 
   function handleReset() {
@@ -62,28 +114,43 @@ export default function Home() {
   }
 
   async function handleCopyLink() {
+    setShareLabel("copying...");
     await navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setShareLabel("✓ copied");
+    setTimeout(() => setShareLabel("share ↗"), 2000);
+  }
+
+  function handleModeChange(mode: InputMode) {
+    setInputMode(mode);
   }
 
   return (
     <div className="min-h-screen" style={{ background: "#050507" }}>
+      <HistorySidebar
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onRestore={handleRestore}
+      />
+
+
       {/* Header */}
       <header
         style={{ borderBottom: "1px solid #3d3a39", background: "#050507" }}
-        className="sticky top-0 z-50"
+        className="sticky top-0 z-30"
       >
-        <div className="max-w-screen-xl mx-auto px-8 py-4 flex items-center justify-between">
+        <div className="max-w-screen-xl mx-auto px-4 md:px-8 py-3 md:py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span
-              className="text-2xl font-black tracking-tighter glow-emerald"
+            <button
+              onClick={handleReset}
+              className="text-2xl font-black tracking-tighter glow-emerald transition-opacity"
               style={{ color: "#00d992", fontFamily: "system-ui" }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.8")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
             >
               CLUX
-            </span>
+            </button>
             <span
-              className="text-xs font-mono px-2 py-0.5 rounded"
+              className="hidden sm:inline text-xs font-mono px-2 py-0.5 rounded"
               style={{ color: "#8b949e", border: "1px solid #3d3a39", background: "#101010" }}
             >
               CLI UX Evaluator
@@ -108,11 +175,10 @@ export default function Home() {
 
       {!result ? (
         /* ── Landing ─────────────────────────────────────────────────── */
-        <main className="max-w-screen-xl mx-auto px-8 py-20">
-          {/* Two-column hero: copy left, form right */}
-          <div className="grid grid-cols-2 gap-16 items-start">
+        <main className="max-w-screen-xl mx-auto px-4 md:px-8 py-10 md:py-20">
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-16 md:items-start">
             {/* Left — hero copy */}
-            <div className="space-y-8 pt-4">
+            <div className="space-y-6 md:space-y-8 text-center md:text-left md:pt-4">
               <div className="space-y-4">
                 <p
                   className="text-xs font-mono uppercase"
@@ -127,27 +193,22 @@ export default function Home() {
                     color: "#f2f2f2",
                     letterSpacing: "-0.65px",
                     lineHeight: 1.0,
-                    fontSize: "clamp(2.5rem, 4vw, 3.75rem)",
+                    fontSize: "clamp(2rem, 6vw, 3.75rem)",
                   }}
                 >
                   Is your CLI actually{" "}
                   <span style={{ color: "#00d992" }}>usable?</span>
                 </h1>
-                <p className="text-lg leading-relaxed" style={{ color: "#b8b3b0" }}>
-                  Paste your CLI&apos;s help text or man page. Get an AI-powered
-                  evaluation across 8 heuristic dimensions — and a{" "}
+                <p className="text-base md:text-lg leading-relaxed" style={{ color: "#b8b3b0" }}>
+                  AI-powered evaluation across 8 heuristic dimensions — get a{" "}
                   <span style={{ color: "#2fd6a1" }} className="font-semibold">
                     CLUX Score
                   </span>{" "}
-                  that shows exactly what to fix first.
+                  and know exactly what to fix first.
                 </p>
-                {/* <p className="text-xs" style={{ color: "#8b949e" }}>
-                  Based on Daniel Jackson&apos;s usability principles + the UNIX philosophy
-                </p> */}
               </div>
 
-              {/* Dimension chips */}
-              <div className="flex flex-wrap gap-2">
+              <div className="hidden md:flex flex-wrap gap-2">
                 {DIMENSIONS.map((d) => (
                   <span
                     key={d.label}
@@ -160,41 +221,55 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Right — form */}
-            <div
-              className="rounded-lg p-6"
-              style={{
-                background: "#101010",
-                border: "1px solid #3d3a39",
-                boxShadow: "rgba(92, 88, 85, 0.2) 0px 0px 15px",
-              }}
-            >
-              <CLIInputForm
-                onResult={handleResult}
-                onError={setError}
-                loading={loading}
-                setLoading={setLoading}
-              />
-              {error && (
-                <p
-                  className="mt-4 text-sm px-4 py-3 rounded font-mono"
-                  style={{
-                    color: "#fb565b",
-                    background: "rgba(251, 86, 91, 0.08)",
-                    border: "1px solid rgba(251, 86, 91, 0.3)",
-                  }}
+            {/* Right — form with history above */}
+            <div className="max-w-lg mx-auto w-full md:max-w-none">
+              <div className="flex justify-end mb-2">
+                <button
+                  onClick={() => setHistoryOpen(true)}
+                  className="text-xs font-mono transition-colors"
+                  style={{ color: "#8b949e" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "#f2f2f2")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "#8b949e")}
                 >
-                  {error}
-                </p>
-              )}
+                  history ↑
+                </button>
+              </div>
+              <div
+                className="rounded-lg p-4 md:p-6"
+                style={{
+                  background: "#101010",
+                  border: "1px solid #3d3a39",
+                  boxShadow: "rgba(92, 88, 85, 0.2) 0px 0px 15px",
+                }}
+              >
+                <CLIInputForm
+                  onResult={handleResult}
+                  onError={setError}
+                  loading={loading}
+                  setLoading={setLoading}
+                  onModeChange={handleModeChange}
+                />
+                {error && (
+                  <p
+                    className="mt-4 text-sm px-4 py-3 rounded font-mono"
+                    style={{
+                      color: "#fb565b",
+                      background: "rgba(251, 86, 91, 0.08)",
+                      border: "1px solid rgba(251, 86, 91, 0.3)",
+                    }}
+                  >
+                    {error}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </main>
       ) : (
         /* ── Results ─────────────────────────────────────────────────── */
-        <main className="max-w-screen-xl mx-auto px-8 py-10">
+        <main className="max-w-screen-xl mx-auto px-4 md:px-8 py-6 md:py-10">
           {/* Top bar */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-6 md:mb-8">
             <button
               onClick={handleReset}
               className="text-sm font-mono transition-colors"
@@ -204,21 +279,32 @@ export default function Home() {
             >
               ← evaluate another
             </button>
-            <button
-              onClick={handleCopyLink}
-              className="text-sm font-semibold transition-colors font-mono"
-              style={{ color: copied ? "#00d992" : "#2fd6a1" }}
-            >
-              {copied ? "✓ copied" : "share results ↗"}
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setHistoryOpen(true)}
+                className="text-sm font-mono transition-colors"
+                style={{ color: "#8b949e" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#f2f2f2")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "#8b949e")}
+              >
+                history
+              </button>
+              <button
+                onClick={handleCopyLink}
+                className="text-sm font-semibold transition-colors font-mono"
+                style={{ color: shareLabel === "✓ copied" ? "#00d992" : "#2fd6a1" }}
+              >
+                {shareLabel}
+              </button>
+            </div>
           </div>
 
-          {/* Two-column results layout */}
-          <div className="flex gap-8 items-start">
-            {/* Left — sticky score + chart */}
-            <div className="w-80 shrink-0 sticky top-20 space-y-0">
+          {/* Results layout */}
+          <div className="flex flex-col gap-6 md:flex-row md:gap-8 md:items-start">
+            {/* Score + chart panel */}
+            <div className="w-full md:w-80 md:shrink-0 md:sticky md:top-20 space-y-4">
               <div
-                className="rounded-lg p-6 space-y-6"
+                className="rounded-lg p-4 md:p-6 space-y-6"
                 style={{
                   background: "#101010",
                   border: "1px solid #3d3a39",
@@ -236,43 +322,13 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Signup nudge */}
-              <div
-                className="rounded-lg p-5 space-y-3 mt-4"
-                style={{
-                  background: "#101010",
-                  border: "2px solid #00d992",
-                  boxShadow: "rgba(0, 217, 146, 0.06) 0px 0px 20px",
-                }}
-              >
-                <p className="font-semibold text-sm" style={{ color: "#f2f2f2" }}>
-                  Track your CLI&apos;s score over time
-                </p>
-                <p className="text-xs leading-relaxed" style={{ color: "#8b949e" }}>
-                  Get notified when org guideline comparison launches.
-                </p>
-                <form onSubmit={(e) => e.preventDefault()} className="space-y-2">
-                  <input
-                    type="email"
-                    placeholder="you@company.com"
-                    className="w-full text-xs px-3 py-2 rounded font-mono focus:outline-none"
-                    style={{ background: "#050507", border: "1px solid #3d3a39", color: "#f2f2f2" }}
-                    onFocus={(e) => (e.currentTarget.style.borderColor = "#00d992")}
-                    onBlur={(e) => (e.currentTarget.style.borderColor = "#3d3a39")}
-                  />
-                  <button
-                    type="submit"
-                    className="w-full text-xs font-semibold py-2 rounded font-mono transition-opacity hover:opacity-80"
-                    style={{ background: "#050507", color: "#2fd6a1", border: "1px solid #3d3a39" }}
-                  >
-                    Notify me
-                  </button>
-                </form>
-              </div>
             </div>
 
-            {/* Right — scrollable dimension breakdown */}
+            {/* Dimension breakdown */}
             <div className="flex-1 min-w-0">
+              {inputMode === "convention" && result.complianceItems != null && result.complianceItems.length > 0 && (
+                <ConventionChecklist items={result.complianceItems} />
+              )}
               <DimensionFeedback dimensions={result.dimensions} />
             </div>
           </div>
@@ -280,7 +336,7 @@ export default function Home() {
       )}
 
       <footer style={{ borderTop: "1px solid #3d3a39" }} className="mt-16">
-        <div className="max-w-screen-xl mx-auto px-8 py-6 flex items-center justify-between">
+        <div className="max-w-screen-xl mx-auto px-4 md:px-8 py-4 md:py-6 flex items-center justify-between">
           <span className="text-xs font-mono" style={{ color: "#8b949e" }}>
             CLUX
           </span>

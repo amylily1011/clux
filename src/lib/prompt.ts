@@ -33,7 +33,30 @@ Does the CLI teach itself to new users?
 - "delete" / "remove" / "rm" / "destroy" → destructive removal
 - "update" / "set" / "edit" → modify existing state
 
-If a verb is borrowed from a well-known UNIX tool (find, grep, sed, cat) but used differently, score Learnability lower and flag it as a HIGH or CRITICAL finding — users will import the wrong mental model and be confused about what the command does.
+When evaluating verb semantics, anchor severity to actual user confusion, not just pattern violation:
+- CRITICAL: the verb actively misleads — a user who has never seen this CLI will predict the wrong behavior and act on that prediction in a way that causes errors or data loss (e.g., "find" used to list available images, not search existing ones).
+- HIGH: the verb is genuinely ambiguous — reasonable users will disagree about what it does, and the wrong guess causes friction.
+- MEDIUM: the verb violates a naming convention but is still domain-clear — users who know the domain will not be confused even if it breaks a pattern.
+- LOW: the verb is unconventional but semantically transparent — anyone reading it will immediately understand what it does.
+
+A verb that is semantically self-evident (e.g., "shell" meaning "open a shell session") must not be rated CRITICAL or HIGH solely because it violates a guideline. Reserve those labels for verbs that genuinely mislead. If you note that a verb is "semantically clear" in your finding, the severity must be MEDIUM or LOW.
+
+Even at MEDIUM or LOW severity, the finding text must still name the guideline being violated and why it matters — e.g. "violates the verb-as-noun convention; while the intent is clear, it deviates from the project's naming standard." The recommendation must carry the same severity as its paired finding so the two stay congruent.
+
+If a verb is borrowed from a well-known UNIX tool (find, grep, sed, cat) but used differently, score Learnability lower and flag it — severity depends on how badly the borrowed meaning misleads users.
+
+**Semantic overlap (critical sub-check):** Look for pairs or groups of commands that appear to serve the same user goal. This is a Learnability failure — users will not know which to reach for, will pick the wrong one, and will lose trust in the CLI. Common patterns to detect:
+- Two commands that both "save state" (e.g. "stash" vs "commit" in git — both preserve work, but the distinction between temporary/local vs permanent/shared is not obvious from the names alone)
+- Two commands that both "create" something (e.g. "apply" vs "create" in kubectl)
+- Two commands that both "export" or "package" (e.g. "save" vs "export" in docker)
+- Two commands that both "show" or "list" something with overlapping output
+
+When you detect semantic overlap, ask:
+1. Is the distinction between the two commands clearly reflected in their names? If not, flag it.
+2. Does the help text for each command explicitly explain when to use it vs the alternative? If not, flag it.
+3. Does the overlap exist because of a historical workaround rather than intentional design (e.g. "stash" was added because commits required a clean worktree)? If so, flag it as CRITICAL — the CLI has a structural design debt that actively misleads users.
+
+Score Learnability lower whenever semantic overlap exists and the naming or help text does not resolve the ambiguity.
 
 ### 2. Error Tolerance (weight: 16%)
 Does the CLI recover gracefully when things go wrong?
@@ -79,7 +102,14 @@ Can users with different needs use it effectively?
 
 ## Output Format
 
-Return ONLY a valid JSON object matching this exact structure. No prose, no markdown, no code fences:
+Return ONLY a valid JSON object matching this exact structure. No prose, no markdown, no code fences.
+Keep findings to a maximum of 3 per dimension. Keep recommendations to a maximum of 2 per dimension. Be concise — each finding and recommendation should be 1–2 sentences max. Deduplicate recommendations across dimensions — if the same fix is relevant to multiple dimensions, include it once under the most relevant dimension only.
+
+### CLI examples (required where possible)
+
+For findings: include "example" whenever you can reconstruct what the user actually sees — the real command and its output or error. Use 1–4 lines. Show the $ prompt for commands, then the output on the next line(s). Do not use pseudocode — show realistic terminal output. Omit "example" only when the finding is structural and no snippet would be meaningful.
+
+For recommendations: include "after" to show what the fixed experience looks like — the improved command, output, or error message. Use the same format ($-prompt + output). Show the contrast clearly so the reader immediately understands what changes.
 
 {
   "cluxScore": <weighted_average_0_to_100>,
@@ -91,11 +121,11 @@ Return ONLY a valid JSON object matching this exact structure. No prose, no mark
       "score": <0_to_100>,
       "summary": "<1-2 sentence assessment>",
       "findings": [
-        { "text": "<specific observation>", "confidence": <0_to_100> },
+        { "text": "<specific observation>", "confidence": <0_to_100>, "example": "<optional: realistic terminal snippet showing this behavior>" },
         ...
       ],
       "recommendations": [
-        { "text": "<actionable fix>", "severity": "<critical|high|medium|low>" },
+        { "text": "<actionable fix>", "severity": "<critical|high|medium|low>", "after": "<optional: terminal snippet showing the improved behavior>" },
         ...
       ]
     },
@@ -181,4 +211,31 @@ ${content}
 --- CLI CONTENT END ---
 
 Return the JSON evaluation object only.`;
+}
+
+export function buildConventionPrompt(conventionRules: string, cliText: string, audience: string): string {
+  return `You are checking whether a specific CLI command complies with an organisation's CLI design conventions.
+
+## Your task
+1. Parse the org conventions below — they may be plain text, YAML, JSON, or bullet points.
+2. Evaluate ONLY the specific command or help output in the CLI CONTENT block. Do not generalise to the broader tool or other commands — scope your analysis to exactly what is shown.
+3. For each rule, determine if the provided command passes or fails. Populate the "complianceItems" array with one entry per rule:
+   - "rule": the rule text (keep it short, max 10 words)
+   - "passed": true or false
+   - "note": one sentence explaining why it passed or failed (optional but helpful for failures)
+4. Also evaluate against the 8 standard UX dimensions, scoped to the single command only. For dimensions covered by org rules, reflect the compliance verdict in the score. For uncovered dimensions, use general best practices.
+5. "overallSummary": exactly 2 sentences — first sentence states pass/fail count, second sentence names the most critical failure (or says all rules pass).
+6. Recommendations should reference the specific org rule being violated.
+
+${AUDIENCE_CONTEXT[audience] ?? AUDIENCE_CONTEXT.human}
+
+--- ORG CONVENTIONS START ---
+${conventionRules}
+--- ORG CONVENTIONS END ---
+
+--- CLI CONTENT START ---
+${cliText}
+--- CLI CONTENT END ---
+
+Return the JSON evaluation object only. Include "complianceItems" alongside the standard fields.`;
 }
