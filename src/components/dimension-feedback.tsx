@@ -50,6 +50,61 @@ const SEVERITY_STYLES: Record<Severity, { color: string; bg: string; border: str
 
 const CONFIDENCE_THRESHOLD = 75;
 
+const SCORE_BANDS = [
+  { min: 90, max: 100, label: "Exemplary", color: "#00d992" },
+  { min: 75, max: 89,  label: "Strong",    color: "#2fd6a1" },
+  { min: 50, max: 74,  label: "Adequate",  color: "#ffba00" },
+  { min: 25, max: 49,  label: "Weak",      color: "#ff8c42" },
+  { min: 0,  max: 24,  label: "Critical",  color: "#fb565b" },
+];
+
+function scoreBand(score: number) {
+  return SCORE_BANDS.find((b) => score >= b.min && score <= b.max) ?? SCORE_BANDS[4];
+}
+
+const DIMENSION_CRITERIA: Record<string, { high: string; mid: string; low: string }> = {
+  Learnability: {
+    high: "Rich --help with examples, consistent naming, clear subcommand hierarchy, man page, progressive disclosure",
+    mid:  "Help exists but sparse; naming mostly consistent; subcommands discoverable",
+    low:  "No help, cryptic names, no hierarchy — users must read source or guess",
+  },
+  "Error Tolerance": {
+    high: "Friendly errors with what went wrong AND what to do next; typo correction; validation before destructive ops; no raw stack traces",
+    mid:  "Errors identify the problem but not the solution; occasional raw exceptions",
+    low:  "Cryptic errors, raw stack traces, silent failures, no guidance",
+  },
+  Efficiency: {
+    high: "Short aliases, --quiet/--verbose, --json output, pipe-friendly, tab completion documented",
+    mid:  "Some shortcuts exist; output mostly machine-parseable",
+    low:  "Verbose-only, no aliases, human-only output, no --json",
+  },
+  Safety: {
+    high: "Destructive commands require confirmation; --dry-run available; clear warnings before data loss",
+    mid:  "Some dangerous commands confirmed; dry-run on a subset of ops",
+    low:  "Destructive ops execute immediately; no warnings; silent data loss possible",
+  },
+  "UNIX Compliance": {
+    high: "Reads stdin; clean stdout; stderr for errors; meaningful exit codes; single-purpose; composable with pipes",
+    mid:  "Mostly follows conventions with some deviations",
+    low:  "Mixes stdout/stderr; exit code always 0; not pipeable; monolithic",
+  },
+  Pleasantness: {
+    high: "Consistent verb-noun naming; sensible defaults; human-readable output; no unnecessary verbosity",
+    mid:  "Mostly consistent; some rough edges in output formatting",
+    low:  "Inconsistent naming; ugly output; wrong defaults; feels unfinished",
+  },
+  Security: {
+    high: "Passwords/tokens never in args; credentials masked in output; no secrets in errors; least privilege",
+    mid:  "Most credentials handled safely; occasional exposure risks",
+    low:  "Passwords accepted as flags; secrets in logs/output; broad permissions",
+  },
+  Accessibility: {
+    high: "No color-only signals; --no-color flag; screen-reader friendly output; no animation by default",
+    mid:  "Some color-only signals; --no-color may exist",
+    low:  "Color-only status indicators; no --no-color; depends on terminal features",
+  },
+};
+
 function scoreColor(score: number): string {
   if (score >= 75) return "#00d992";
   if (score >= 50) return "#ffba00";
@@ -58,6 +113,7 @@ function scoreColor(score: number): string {
 
 function ScoreBar({ score }: { score: number }) {
   const color = scoreColor(score);
+  const band  = scoreBand(score);
   return (
     <div className="flex items-center gap-2">
       <span
@@ -69,6 +125,12 @@ function ScoreBar({ score }: { score: number }) {
       <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "#1a1a1a" }}>
         <div className="h-full rounded-full" style={{ width: `${score}%`, background: color }} />
       </div>
+      <span
+        className="text-xs font-mono px-1.5 py-0.5 rounded shrink-0"
+        style={{ color: band.color, background: `${band.color}15`, border: `1px solid ${band.color}40` }}
+      >
+        {band.label}
+      </span>
     </div>
   );
 }
@@ -76,6 +138,7 @@ function ScoreBar({ score }: { score: number }) {
 function DimensionCard({ d }: { d: DimensionScore }) {
   const [showAll, setShowAll] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
+  const [showCriteria, setShowCriteria] = useState(false);
   const highConfidence = d.findings.filter((f) => f.confidence >= CONFIDENCE_THRESHOLD);
   const lowConfidence  = d.findings.filter((f) => f.confidence < CONFIDENCE_THRESHOLD);
   const visible = showAll ? d.findings : highConfidence;
@@ -117,6 +180,47 @@ function DimensionCard({ d }: { d: DimensionScore }) {
         </div>
         <ScoreBar score={d.score} />
         <p className="text-xs leading-relaxed" style={{ color: "#8b949e" }}>{d.summary}</p>
+
+        {/* Scoring criteria toggle */}
+        {DIMENSION_CRITERIA[d.dimension] && (
+          <div>
+            <button
+              onClick={() => setShowCriteria((v) => !v)}
+              className="text-xs font-mono transition-colors"
+              style={{ color: "#3d3a39" }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#8b949e")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "#3d3a39")}
+            >
+              {showCriteria ? "↑ hide criteria" : "↓ how this is scored"}
+            </button>
+            {showCriteria && (
+              <div className="mt-2 space-y-1">
+                {(["high", "mid", "low"] as const).map((tier) => {
+                  const band = tier === "high" ? SCORE_BANDS[1] : tier === "mid" ? SCORE_BANDS[2] : SCORE_BANDS[3];
+                  const range = tier === "high" ? "75–100" : tier === "mid" ? "50–74" : "0–49";
+                  const active = tier === "high" ? d.score >= 75 : tier === "mid" ? d.score >= 50 : d.score < 50;
+                  return (
+                    <div
+                      key={tier}
+                      className="flex gap-2 items-start px-2 py-1.5 rounded text-xs"
+                      style={{
+                        background: active ? `${band.color}10` : "transparent",
+                        border: `1px solid ${active ? band.color + "30" : "transparent"}`,
+                      }}
+                    >
+                      <span className="font-mono shrink-0" style={{ color: active ? band.color : "#3d3a39" }}>
+                        {range}
+                      </span>
+                      <span style={{ color: active ? "#b8b3b0" : "#3d3a39" }}>
+                        {DIMENSION_CRITERIA[d.dimension][tier]}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Findings */}

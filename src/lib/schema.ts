@@ -26,7 +26,7 @@ export const DimensionScoreSchema = z.object({
   dimension: z.string(),
   score: z.number().min(0).max(100),
   summary: z.string(),
-  findings: z.array(FindingSchema),
+  findings: z.array(FindingSchema).min(1),
   recommendations: z.array(RecommendationSchema),
 });
 

@@ -103,7 +103,7 @@ Can users with different needs use it effectively?
 ## Output Format
 
 Return ONLY a valid JSON object matching this exact structure. No prose, no markdown, no code fences.
-Keep findings to a maximum of 3 per dimension. Keep recommendations to a maximum of 2 per dimension. Be concise — each finding and recommendation should be 1–2 sentences max. Deduplicate recommendations across dimensions — if the same fix is relevant to multiple dimensions, include it once under the most relevant dimension only.
+Every dimension MUST have at least 1 finding — never return an empty findings array. If evidence is limited, include a finding with a confidence score below 50 noting what could not be verified. Keep findings to a maximum of 3 per dimension. Keep recommendations to a maximum of 2 per dimension. Be concise — each finding and recommendation should be 1–2 sentences max. Deduplicate recommendations across dimensions — if the same fix is relevant to multiple dimensions, include it once under the most relevant dimension only.
 
 ### CLI examples (required where possible)
 
@@ -177,6 +177,10 @@ Evaluate through the lens of a script, CI pipeline, or programmatic caller.
 
 export function buildContentPrompt(content: string, audience: string): string {
   return `Evaluate the CLI described in the following content. Detect the CLI name from the content itself.
+
+If the content is a subcommand (e.g. "multipass find" or "git commit"), set "cliName" to the full command as given — do not reduce it to just the root tool name (e.g. use "multipass find", not "multipass").
+
+If the content is a bare command name with no output, evaluate based on your training knowledge of that command and note in findings where confidence is limited.
 
 ${AUDIENCE_CONTEXT[audience] ?? AUDIENCE_CONTEXT.human}
 

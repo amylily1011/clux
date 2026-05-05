@@ -25,7 +25,7 @@ const AUDIENCES: { value: CLIAudience; label: string; description: string }[] = 
 ];
 
 const MODES: { value: InputMode; label: string; hint: string }[] = [
-  { value: "paste",      label: "CLI Command",  hint: "Type a command name (e.g. multipass find) or paste its --help output for a deeper analysis." },
+  { value: "paste",      label: "CLI Command",  hint: "Type a command name (e.g. multipass find) or paste its input and output for a deeper analysis." },
   { value: "convention", label: "Convention",   hint: "Check one command against your org's CLI design rules" },
 ];
 
@@ -136,7 +136,7 @@ export function CLIInputForm({ onResult, onError, loading, setLoading, onModeCha
             <textarea
               value={cliText}
               onChange={(e) => setCLIText(e.target.value)}
-              placeholder="multipass find&#10;&#10;— or paste the output of a command —&#10;&#10;$ ppa --help&#10;..."
+              placeholder="git --help&#10;&#10;— or paste the input and output of a command —&#10;&#10;$ ppa --help&#10;..."
               autoFocus
               className="w-full text-xs font-mono rounded p-4 resize-y min-h-[180px] focus:outline-none"
               style={{ background: "#050507", border: "1px solid #3d3a39", color: "#f2f2f2", lineHeight: 1.6 }}
