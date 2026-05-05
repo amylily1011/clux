@@ -41,7 +41,7 @@ function shortId(): string {
 
 export default function Home() {
   const [result, setResult] = useState<EvaluationResult | null>(null);
-  const [inputMode, setInputMode] = useState<InputMode>("name");
+  const [inputMode, setInputMode] = useState<InputMode>("paste");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [shareLabel, setShareLabel] = useState<"share ↗" | "copying..." | "✓ copied">("share ↗");

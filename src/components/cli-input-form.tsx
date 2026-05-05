@@ -25,23 +25,19 @@ const AUDIENCES: { value: CLIAudience; label: string; description: string }[] = 
 ];
 
 const MODES: { value: InputMode; label: string; hint: string }[] = [
-  { value: "name",       label: "CLI Command", hint: "Evaluate one command — e.g. git commit, docker run, ppa --help" },
-  { value: "paste",      label: "Paste",       hint: "Paste the output of one command (e.g. ppa --help). One command at a time." },
-  { value: "convention", label: "Convention",  hint: "Check one command against your org's CLI design rules" },
+  { value: "paste",      label: "CLI Command",  hint: "Paste the output of one command (e.g. ppa --help). One command at a time." },
+  { value: "convention", label: "Convention",   hint: "Check one command against your org's CLI design rules" },
 ];
 
 const MAX_CHARS = 12000;
 
 export function CLIInputForm({ onResult, onError, loading, setLoading, onModeChange }: Props) {
-  const [mode, setMode] = useState<InputMode>("name");
+  const [mode, setMode] = useState<InputMode>("paste");
   const [audience, setAudience] = useState<CLIAudience>("human");
-  const [cliName, setCLIName] = useState("");
-  const [docsUrl, setDocsUrl] = useState("");
   const [cliText, setCLIText] = useState("");
   const [conventionRules, setConventionRules] = useState("");
 
   function isReady() {
-    if (mode === "name")       return cliName.trim().length > 0;
     if (mode === "paste")      return cliText.trim().length >= 10;
     if (mode === "convention") return conventionRules.trim().length >= 10 && cliText.trim().length >= 10;
     return false;
@@ -55,9 +51,7 @@ export function CLIInputForm({ onResult, onError, loading, setLoading, onModeCha
     onError("");
 
     const payload =
-      mode === "name"
-        ? { inputMode: "name", cliName: cliName.trim(), audience, ...(docsUrl.trim() ? { docsUrl: docsUrl.trim() } : {}) }
-        : mode === "paste"
+      mode === "paste"
         ? { inputMode: "paste", cliText: cliText.slice(0, MAX_CHARS), audience }
         : { inputMode: "convention", conventionRules: conventionRules.slice(0, MAX_CHARS), cliText: cliText.slice(0, MAX_CHARS), audience };
 
@@ -136,45 +130,13 @@ export function CLIInputForm({ onResult, onError, loading, setLoading, onModeCha
           {MODES.find((m) => m.value === mode)?.hint}
         </p>
 
-        {/* CLI Command input + optional docs URL */}
-        {mode === "name" && (
-          <div className="space-y-2">
-            <input
-              type="text"
-              value={cliName}
-              onChange={(e) => setCLIName(e.target.value)}
-              placeholder="git --help"
-              autoFocus
-              className="w-full text-sm px-4 py-3 rounded font-mono focus:outline-none placeholder:text-[#3d3a39]"
-              style={{ background: "#050507", border: "1px solid #3d3a39", color: "#f2f2f2", fontSize: "1rem" }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "#00d992")}
-              onBlur={(e) => (e.currentTarget.style.borderColor = "#3d3a39")}
-            />
-            <div className="space-y-1">
-              <label className="text-xs font-mono" style={{ color: "#8b949e" }}>
-                Docs URL <span style={{ color: "#3d3a39" }}>(optional) - add a doc reference for more accurate results</span>
-              </label>
-              <input
-                type="url"
-                value={docsUrl}
-                onChange={(e) => setDocsUrl(e.target.value)}
-                placeholder="https://man page, README, or docs site"
-                className="w-full text-xs px-4 py-2.5 rounded font-mono focus:outline-none"
-                style={{ background: "#050507", border: "1px solid #3d3a39", color: "#8b949e" }}
-                onFocus={(e) => (e.currentTarget.style.borderColor = "#00d992")}
-                onBlur={(e) => (e.currentTarget.style.borderColor = "#3d3a39")}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Paste textarea */}
+        {/* CLI Command textarea */}
         {mode === "paste" && (
           <div className="relative">
             <textarea
               value={cliText}
               onChange={(e) => setCLIText(e.target.value)}
-              placeholder="$ ppa --help&#10;&#10;Paste the output of one command here..."
+              placeholder="$ ppa --help&#10;&#10;Paste the input and output of one command here..."
               autoFocus
               className="w-full text-xs font-mono rounded p-4 resize-y min-h-[180px] focus:outline-none"
               style={{ background: "#050507", border: "1px solid #3d3a39", color: "#f2f2f2", lineHeight: 1.6 }}

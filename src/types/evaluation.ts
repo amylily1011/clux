@@ -37,12 +37,10 @@ export interface EvaluationResult {
   complianceItems?: ComplianceItem[];
 }
 
-export type InputMode = "name" | "paste" | "convention";
+export type InputMode = "paste" | "convention";
 
 export interface EvaluationRequest {
   inputMode: InputMode;
-  cliName?: string;   // name mode
-  docsUrl?: string;   // optional reference URL (name mode only)
-  cliText?: string;   // paste mode
+  cliText?: string;
   audience: CLIAudience;
 }
