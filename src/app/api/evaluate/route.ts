@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { EvaluationRequestSchema } from "@/lib/schema";
-import { evaluateByContent, evaluateByConvention } from "@/lib/ai";
+import { evaluateByConvention, evaluateByUnix } from "@/lib/ai";
+import { UNIX_RULES } from "@/lib/unix-rules";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isAllowedOrigin } from "@/lib/origin";
 import { sanitizeContent } from "@/lib/sanitize";
-import { prescreenCLIContent } from "@/lib/prescreen";
 
 export async function POST(req: NextRequest) {
   if (!isAllowedOrigin(req)) {
@@ -36,29 +36,31 @@ export async function POST(req: NextRequest) {
   try {
     let result;
 
-    if (data.inputMode === "paste") {
-      const pre = prescreenCLIContent(data.cliText);
-      if (!pre.ok) return NextResponse.json({ error: pre.reason }, { status: 400 });
-      result = await evaluateByContent(sanitizeContent(data.cliText), data.audience);
+    const hasOrgRules = !!data.conventionRules && data.conventionRules.trim().length >= 10;
 
-    } else {
+    if (hasOrgRules) {
       result = await evaluateByConvention(
-        sanitizeContent(data.conventionRules),
+        sanitizeContent(data.conventionRules!),
         sanitizeContent(data.cliText),
-        data.audience
+        data.audience,
+        false,
+        UNIX_RULES,
       );
 
-      if (result.complianceItems && result.complianceItems.length > 0) {
-        const total  = result.complianceItems.length;
-        const passed = result.complianceItems.filter((i: { passed: boolean }) => i.passed).length;
+      const orgItems = (result.complianceItems ?? []).filter((i: { type?: string }) => i.type === "org");
+      if (orgItems.length > 0) {
+        const total  = orgItems.length;
+        const passed = orgItems.filter((i: { passed: boolean }) => i.passed).length;
         const failed = total - passed;
         const countSentence =
           failed === 0
-            ? `All ${total} org rules pass.`
+            ? `All ${total} org rule${total > 1 ? "s" : ""} pass.`
             : `${passed} of ${total} org rule${total > 1 ? "s" : ""} pass${passed === 1 ? "es" : ""}, ${failed} fail${failed === 1 ? "s" : ""}.`;
         const rest = result.overallSummary.replace(/^[^.!?]+[.!?]\s*/, "");
         result = { ...result, overallSummary: `${countSentence}${rest ? " " + rest : ""}` };
       }
+    } else {
+      result = await evaluateByUnix(sanitizeContent(data.cliText), data.audience);
     }
 
     return NextResponse.json({ ...result, audience: data.audience });

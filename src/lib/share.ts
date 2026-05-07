@@ -6,7 +6,10 @@ export function encodeResult(result: EvaluationResult): string {
   const json = JSON.stringify(result);
   const compressed = pako.deflate(json);
   // Convert Uint8Array to base64url
-  const base64 = btoa(String.fromCharCode(...compressed))
+  // Avoid spreading large Uint8Arrays (throws RangeError above ~10KB)
+  let binary = "";
+  for (let i = 0; i < compressed.length; i++) binary += String.fromCharCode(compressed[i]);
+  const base64 = btoa(binary)
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");

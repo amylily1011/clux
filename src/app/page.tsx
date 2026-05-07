@@ -3,14 +3,14 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { CLIInputForm } from "@/components/cli-input-form";
+import { CLIInputForm, type EvalPayload } from "@/components/cli-input-form";
 import { ScoreCard } from "@/components/score-card";
 import { DimensionFeedback } from "@/components/dimension-feedback";
 import { ConventionChecklist } from "@/components/convention-checklist";
 import { HistorySidebar } from "@/components/history-sidebar";
-import type { InputMode } from "@/types/evaluation";
+
 import { EvaluationResultSchema } from "@/lib/schema";
-import { encodeResult, decodeResult } from "@/lib/share";
+import { decodeResult } from "@/lib/share";
 import type { EvaluationResult } from "@/types/evaluation";
 import { saveToHistory } from "@/lib/history";
 import type { HistoryItem } from "@/lib/history";
@@ -42,10 +42,11 @@ function shortId(): string {
 
 export default function Home() {
   const [result, setResult] = useState<EvaluationResult | null>(null);
-  const [inputMode, setInputMode] = useState<InputMode>("paste");
+  const [lastPayload, setLastPayload] = useState<EvalPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [shareLabel, setShareLabel] = useState<"share ↗" | "copying..." | "✓ copied">("share ↗");
+  const [shareLabel, setShareLabel] = useState<"share ↗" | "sharing..." | "✓ copied">("share ↗");
+  const [shareId, setShareId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
@@ -68,7 +69,7 @@ export default function Home() {
     if (decoded) setResult(decoded);
   }, []);
 
-  function handleResult(data: unknown, mode?: InputMode) {
+  function handleResult(data: unknown, payload: EvalPayload) {
     const parsed = EvaluationResultSchema.safeParse(data);
     if (!parsed.success) {
       setError("Received an unexpected response format. Please try again.");
@@ -76,20 +77,20 @@ export default function Home() {
     }
     const ev = parsed.data;
     setResult(ev);
+    setLastPayload(payload);
+    setShareId(null);
 
     const item: HistoryItem = {
       id: shortId(),
       cliName: ev.cliName,
       score: ev.cluxScore,
-      inputMode: mode ?? inputMode,
+      inputMode: payload.inputMode,
       createdAt: Date.now(),
       result: ev,
     };
     saveToHistory(item);
 
-    const encoded = encodeResult(ev);
-    window.history.replaceState(null, "", `#${encoded}`);
-
+    // Eagerly persist the share so the ID is ready when the user clicks "share ↗".
     fetch("/api/share", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -97,32 +98,86 @@ export default function Home() {
     })
       .then((r) => r.json())
       .then(({ id }) => {
-        if (id) window.history.replaceState(null, "", `#s/${id}`);
+        if (id) {
+          setShareId(id);
+          window.history.replaceState(null, "", `#s/${id}`);
+        }
       })
       .catch(() => {});
   }
 
   function handleRestore(item: HistoryItem) {
     setResult(item.result);
-    setInputMode(item.inputMode);
+    setLastPayload(null);
+    setShareId(null);
     window.history.replaceState(null, "", window.location.pathname);
   }
 
   function handleReset() {
     setResult(null);
     setError("");
+    setLastPayload(null);
+    setShareId(null);
     window.history.replaceState(null, "", window.location.pathname);
   }
 
   async function handleCopyLink() {
-    setShareLabel("copying...");
-    await navigator.clipboard.writeText(window.location.href);
+    if (!result) return;
+    setShareLabel("sharing...");
+
+    let id = shareId;
+    if (!id) {
+      // Background POST hasn't resolved yet or failed — try once more.
+      try {
+        const r = await fetch("/api/share", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(result),
+        });
+        const data = await r.json();
+        if (data.id) {
+          id = data.id;
+          setShareId(id);
+          window.history.replaceState(null, "", `#s/${id}`);
+        }
+      } catch {}
+    }
+
+    const url = id
+      ? `${window.location.origin}/#s/${id}`
+      : window.location.href;
+
+    await navigator.clipboard.writeText(url);
     setShareLabel("✓ copied");
     setTimeout(() => setShareLabel("share ↗"), 2000);
   }
 
-  function handleModeChange(mode: InputMode) {
-    setInputMode(mode);
+  async function handleAudienceSwap() {
+    if (!lastPayload || loading) return;
+    const newAudience = lastPayload.audience === "human" ? "scripting" : "human";
+    const newPayload: EvalPayload = { ...lastPayload, audience: newAudience };
+
+    setLoading(true);
+    setError("");
+
+    const apiBody = newPayload.conventionRules
+      ? { cliText: newPayload.cliText, conventionRules: newPayload.conventionRules, audience: newAudience }
+      : { cliText: newPayload.cliText, audience: newAudience };
+
+    try {
+      const res = await fetch("/api/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(apiBody),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? "Something went wrong."); return; }
+      handleResult(data, newPayload);
+    } catch {
+      setError("Network error. Please check your connection.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -245,11 +300,10 @@ export default function Home() {
                 }}
               >
                 <CLIInputForm
-                  onResult={handleResult}
+                  onResult={(data, payload) => handleResult(data, payload)}
                   onError={setError}
                   loading={loading}
                   setLoading={setLoading}
-                  onModeChange={handleModeChange}
                 />
                 {error && (
                   <p
@@ -282,6 +336,32 @@ export default function Home() {
               ← evaluate another
             </button>
             <div className="flex items-center gap-4">
+              {lastPayload && (
+                <button
+                  onClick={handleAudienceSwap}
+                  disabled={loading}
+                  className="flex items-center gap-1.5 text-sm font-mono transition-colors"
+                  style={{ color: loading ? "#3d3a39" : "#8b949e", cursor: loading ? "not-allowed" : "pointer" }}
+                  onMouseEnter={(e) => { if (!loading) e.currentTarget.style.color = "#f2f2f2"; }}
+                  onMouseLeave={(e) => { if (!loading) e.currentTarget.style.color = "#8b949e"; }}
+                >
+                  {loading ? "evaluating..." : (
+                    <>
+                      check results:
+                      <span
+                        className="px-1.5 py-0.5 rounded text-xs"
+                        style={{
+                          color: lastPayload.audience === "human" ? "#a78bfa" : "#2fd6a1",
+                          background: lastPayload.audience === "human" ? "rgba(167,139,250,0.1)" : "rgba(47,214,161,0.1)",
+                          border: `1px solid ${lastPayload.audience === "human" ? "rgba(167,139,250,0.3)" : "rgba(47,214,161,0.3)"}`,
+                        }}
+                      >
+                        {lastPayload.audience === "human" ? "scripting-first" : "human-first"}
+                      </span>
+                    </>
+                  )}
+                </button>
+              )}
               <button
                 onClick={() => setHistoryOpen(true)}
                 className="text-sm font-mono transition-colors"
@@ -328,8 +408,8 @@ export default function Home() {
 
             {/* Dimension breakdown */}
             <div className="flex-1 min-w-0">
-              {inputMode === "convention" && result.complianceItems != null && result.complianceItems.length > 0 && (
-                <ConventionChecklist items={result.complianceItems} />
+              {result.complianceItems != null && result.complianceItems.length > 0 && (
+                <ConventionChecklist items={result.complianceItems} showToggle={true} />
               )}
               <DimensionFeedback dimensions={result.dimensions} />
             </div>

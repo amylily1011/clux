@@ -13,13 +13,13 @@ export const ConventionRuleSchema = z.object({
 export const FindingSchema = z.object({
   text: z.string(),
   confidence: z.number().min(0).max(100),
-  example: z.string().optional(),
+  example: z.string().nullish().transform(v => v ?? undefined),
 });
 
 export const RecommendationSchema = z.object({
   text: z.string(),
   severity: z.enum(["critical", "high", "medium", "low"]),
-  after: z.string().optional(),
+  after: z.string().nullish().transform(v => v ?? undefined),
 });
 
 export const DimensionScoreSchema = z.object({
@@ -34,6 +34,7 @@ export const ComplianceItemSchema = z.object({
   rule: z.string(),
   passed: z.boolean(),
   note: z.string().optional(),
+  type: z.enum(["unix", "org"]).optional(),
 });
 
 // Validates Claude's convention-mode response — complianceItems required, not optional
@@ -59,16 +60,8 @@ export const EvaluationResultSchema = ClaudeResponseSchema.extend({
   audience: z.enum(["human", "scripting"]),
 });
 
-export const EvaluationRequestSchema = z.discriminatedUnion("inputMode", [
-  z.object({
-    inputMode: z.literal("paste"),
-    cliText: z.string().min(10).max(12000),
-    audience: z.enum(["human", "scripting"]),
-  }),
-  z.object({
-    inputMode: z.literal("convention"),
-    conventionRules: z.string().min(10).max(12000),
-    cliText: z.string().min(10).max(12000),
-    audience: z.enum(["human", "scripting"]),
-  }),
-]);
+export const EvaluationRequestSchema = z.object({
+  cliText: z.string().min(2).max(12000),
+  conventionRules: z.string().min(10).max(50000).optional(),
+  audience: z.enum(["human", "scripting"]),
+});

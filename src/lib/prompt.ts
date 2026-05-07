@@ -102,8 +102,11 @@ Can users with different needs use it effectively?
 
 ## Output Format
 
-Return ONLY a valid JSON object matching this exact structure. No prose, no markdown, no code fences.
-Every dimension MUST have at least 1 finding — never return an empty findings array. If evidence is limited, include a finding with a confidence score below 50 noting what could not be verified. Keep findings to a maximum of 3 per dimension. Keep recommendations to a maximum of 2 per dimension. Be concise — each finding and recommendation should be 1–2 sentences max. Deduplicate recommendations across dimensions — if the same fix is relevant to multiple dimensions, include it once under the most relevant dimension only.
+Return ONLY a valid JSON object matching this exact structure. No prose, no markdown, no code fences. Do not add extra fields, do not rename keys, do not omit required fields. The structure below is locked.
+
+Every dimension MUST have exactly 2 findings and exactly 1 recommendation — no more, no fewer. Never return an empty findings array. If evidence is limited for a second finding, include it with confidence below 50 noting what could not be verified. Be concise — each finding and recommendation should be 1–2 sentences max. Deduplicate recommendations across dimensions — if the same fix is relevant to multiple dimensions, include it once under the most relevant dimension only.
+
+Every finding "text" MUST cite specific evidence from the CLI input — quote a flag name, exact command, output line, or error message verbatim. Do not make general observations without citing the specific text that is evidence for the claim. If no specific text can be cited, lower the confidence score below 50 and state what could not be verified.
 
 ### CLI examples (required where possible)
 
@@ -133,7 +136,9 @@ For recommendations: include "after" to show what the fixed experience looks lik
   ]
 }
 
-The cluxScore must equal: round(Learnability*0.18 + ErrorTolerance*0.16 + Efficiency*0.14 + Safety*0.13 + UNIXCompliance*0.12 + Pleasantness*0.10 + Security*0.10 + Accessibility*0.07)
+The cluxScore MUST equal: round(Learnability*0.18 + ErrorTolerance*0.16 + Efficiency*0.14 + Safety*0.13 + UNIXCompliance*0.12 + Pleasantness*0.10 + Security*0.10 + Accessibility*0.07)
+
+The dimensions array MUST contain exactly 8 objects in this fixed order: Learnability, Error Tolerance, Efficiency, Safety, UNIX Compliance, Pleasantness, Security, Accessibility. Do not reorder, merge, split, or rename dimensions.
 
 ## Confidence scores for findings
 Rate each finding's confidence (0–100) based on how certain you are from the available evidence:
@@ -191,29 +196,87 @@ ${content}
 Return the JSON evaluation object only.`;
 }
 
-export function buildConventionPrompt(conventionRules: string, cliText: string, audience: string): string {
-  return `You are checking whether a specific CLI command complies with an organisation's CLI design conventions.
+export function buildUnixPrompt(cliText: string, audience: string, unixRules: string): string {
+  return `You are evaluating a CLI for UX quality and UNIX philosophy compliance.
 
-## Your task
-1. Parse the org conventions below — they may be plain text, YAML, JSON, or bullet points.
-2. Evaluate ONLY the specific command or help output in the CLI CONTENT block. Do not generalise to the broader tool or other commands — scope your analysis to exactly what is shown.
-3. For each rule, determine if the provided command passes or fails. Populate the "complianceItems" array with one entry per rule:
-   - "rule": the rule text (keep it short, max 10 words)
-   - "passed": true or false
-   - "note": one sentence explaining why it passed or failed (optional but helpful for failures)
-4. Also evaluate against the 8 standard UX dimensions, scoped to the single command only. For dimensions covered by org rules, reflect the compliance verdict in the score. For uncovered dimensions, use general best practices.
-5. "overallSummary": exactly 2 sentences — first sentence states pass/fail count, second sentence names the most critical failure (or says all rules pass).
-6. Recommendations should reference the specific org rule being violated.
+If the CLI CONTENT contains only a command name or short command (single line, no help output), evaluate based on your training knowledge of that command — use what you know about how it behaves, what flags it accepts, and how it fits into the ecosystem. Note confidence levels in findings where your knowledge may be limited.
+
+If the content is a subcommand (e.g. "multipass find" or "git commit"), set "cliName" to the full command as given — do not reduce it to just the root tool name.
+
+If the CLI CONTENT contains actual help output or command output, scope your analysis to what is shown while supplementing with training knowledge where relevant.
 
 ${AUDIENCE_CONTEXT[audience] ?? AUDIENCE_CONTEXT.human}
 
---- ORG CONVENTIONS START ---
-${conventionRules}
---- ORG CONVENTIONS END ---
+## UNIX Compliance Rules
+For each UNIX rule below, add a complianceItem with "type": "unix".
+
+--- UNIX RULES START ---
+${unixRules}
+--- UNIX RULES END ---
 
 --- CLI CONTENT START ---
 ${cliText}
 --- CLI CONTENT END ---
 
-Return the JSON evaluation object only. Include "complianceItems" alongside the standard fields.`;
+Return the COMPLETE JSON object defined in the system prompt — cluxScore, cliName, overallSummary, all 8 dimension objects, AND complianceItems. Do not return a partial object. "complianceItems" must contain one entry per UNIX rule.`;
+}
+
+export function buildConventionPrompt(conventionRules: string, cliText: string, audience: string, unixRules?: string): string {
+  const unixSection = unixRules ? `
+## UNIX Compliance Rules
+For each UNIX rule, add a complianceItem with "type": "unix".
+
+--- UNIX RULES START ---
+${unixRules}
+--- UNIX RULES END ---
+` : "";
+
+  const orgSection = `
+## Org Conventions
+For each org convention rule, add a complianceItem with "type": "org".
+
+--- ORG CONVENTIONS START ---
+${conventionRules}
+--- ORG CONVENTIONS END ---
+`;
+
+  return `You are checking whether a specific CLI command complies with design rules.
+
+## Your task
+1. Parse all rule sets below. Treat each distinct bullet point, numbered item, or stated requirement as a separate rule — do not group similar rules together.
+2. Evaluate the CLI CONTENT against each rule. If the content is only a bare command name or short command with no help output, use your training knowledge of that command to evaluate compliance — do not restrict yourself to only what is literally shown.
+3. For each rule, make a single binary decision: passed or failed. Apply this decision rule strictly:
+   - If you have direct evidence the rule is satisfied → passed: true
+   - If you have direct evidence the rule is violated → passed: false
+   - If you cannot verify from what was given → passed: true, note: "Could not verify — insufficient input"
+   Never split the difference or hedge. One rule = one binary outcome.
+   Populate the "complianceItems" array with one entry per rule:
+   - "rule": the rule text (keep it short, max 10 words)
+   - "passed": true or false
+   - "note": one sentence explaining why it passed or failed (optional but helpful for failures)
+   - "type": "unix" or "org" as specified per rule set
+4. Also evaluate against the 8 standard UX dimensions, scoped to the single command only.
+5. "overallSummary": exactly 2 sentences — first sentence states overall pass/fail count, second sentence names the most critical failure (or says all rules pass).
+6. Recommendations should reference the specific rule being violated.
+
+## Accuracy rules — these are non-negotiable
+
+### When CLI content is a bare command name (no help output provided):
+- Do NOT fail any rule that requires observing help text, flags, or output format. You have not seen those — you cannot verify them.
+- For any such rule, mark "passed: true" and write: "Could not verify without help output — run '<command> --help' to confirm."
+- You may use training knowledge ONLY when you are highly confident. If you have any doubt, mark as unverifiable rather than guessing.
+- NEVER mention, reference, or compare to commands, subcommands, flags, or behaviors you are not certain exist. Inventing a related command (e.g. claiming "multipass create" exists when you are not sure) is a fabrication error.
+
+### General rules:
+- Only mark "passed: false" if you have direct evidence from the provided content, or you are certain from training knowledge that the behavior does not exist.
+- Prefer "Could not verify" over any false failure.
+- If a rule simply cannot be evaluated from what was given, say so — do not speculate to fill the gap.
+
+${AUDIENCE_CONTEXT[audience] ?? AUDIENCE_CONTEXT.human}
+${unixSection}${orgSection}
+--- CLI CONTENT START ---
+${cliText}
+--- CLI CONTENT END ---
+
+Return the COMPLETE JSON object defined in the system prompt — cluxScore, cliName, overallSummary, all 8 dimension objects, AND complianceItems. Do not return a partial object. "complianceItems" must contain one entry per rule with the "type" field set.`;
 }

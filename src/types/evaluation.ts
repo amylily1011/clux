@@ -26,6 +26,7 @@ export interface ComplianceItem {
   rule: string;
   passed: boolean;
   note?: string;
+  type?: "unix" | "org";
 }
 
 export interface EvaluationResult {

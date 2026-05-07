@@ -11,15 +11,23 @@ interface Props {
 }
 
 const MODE_LABEL: Record<string, string> = {
-  name:       "Command",
-  paste:      "Paste",
-  convention: "Convention",
+  paste:      "UNIX",
+  convention: "Org Rules",
 };
 
 const MODE_COLOR: Record<string, string> = {
-  name:       "#8b949e",
-  paste:      "#8b949e",
+  paste:      "#2fd6a1",
   convention: "#a78bfa",
+};
+
+const AUDIENCE_LABEL: Record<string, string> = {
+  human:     "human",
+  scripting: "scripting",
+};
+
+const AUDIENCE_COLOR: Record<string, string> = {
+  human:     "#2fd6a1",
+  scripting: "#a78bfa",
 };
 
 function scoreColor(score: number): string {
@@ -126,17 +134,29 @@ export function HistorySidebar({ open, onClose, onRestore }: Props) {
                     <p className="text-sm font-mono truncate" style={{ color: "#f2f2f2" }}>
                       {item.cliName}
                     </p>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span
                         className="text-xs font-mono px-1.5 py-0.5 rounded"
                         style={{
-                          color: MODE_COLOR[item.inputMode],
+                          color: MODE_COLOR[item.inputMode] ?? "#8b949e",
                           background: "rgba(139,148,158,0.08)",
                           border: "1px solid #1a1a1a",
                         }}
                       >
-                        {MODE_LABEL[item.inputMode]}
+                        {MODE_LABEL[item.inputMode] ?? item.inputMode}
                       </span>
+                      {item.result.audience && (
+                        <span
+                          className="text-xs font-mono px-1.5 py-0.5 rounded"
+                          style={{
+                            color: AUDIENCE_COLOR[item.result.audience] ?? "#8b949e",
+                            background: "rgba(139,148,158,0.04)",
+                            border: "1px solid #1a1a1a",
+                          }}
+                        >
+                          {AUDIENCE_LABEL[item.result.audience] ?? item.result.audience}
+                        </span>
+                      )}
                       <span className="text-xs font-mono" style={{ color: "#3d3a39" }}>
                         {relativeTime(item.createdAt)}
                       </span>

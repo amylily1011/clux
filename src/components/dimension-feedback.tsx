@@ -50,6 +50,13 @@ const SEVERITY_STYLES: Record<Severity, { color: string; bg: string; border: str
 
 const CONFIDENCE_THRESHOLD = 75;
 
+function certaintyLabel(confidence: number) {
+  const label = `${confidence}% certain`;
+  if (confidence >= 75) return { label, color: "#00d992", bg: "rgba(0,217,146,0.08)",   border: "1px solid rgba(0,217,146,0.2)"   };
+  if (confidence >= 50) return { label, color: "#ffba00", bg: "rgba(255,186,0,0.08)",   border: "1px solid rgba(255,186,0,0.2)"   };
+  return                       { label, color: "#8b949e", bg: "rgba(139,148,158,0.08)", border: "1px solid rgba(139,148,158,0.2)" };
+}
+
 const SCORE_BANDS = [
   { min: 90, max: 100, label: "Exemplary", color: "#00d992" },
   { min: 75, max: 89,  label: "Strong",    color: "#2fd6a1" },
@@ -136,12 +143,9 @@ function ScoreBar({ score }: { score: number }) {
 }
 
 function DimensionCard({ d }: { d: DimensionScore }) {
-  const [showAll, setShowAll] = useState(false);
+  const [showFindings, setShowFindings] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
-  const [showCriteria, setShowCriteria] = useState(false);
-  const highConfidence = d.findings.filter((f) => f.confidence >= CONFIDENCE_THRESHOLD);
-  const lowConfidence  = d.findings.filter((f) => f.confidence < CONFIDENCE_THRESHOLD);
-  const visible = showAll ? d.findings : highConfidence;
+  const [showCriteria, setShowCriteria] = useState(true);
 
   return (
     <div
@@ -224,38 +228,34 @@ function DimensionCard({ d }: { d: DimensionScore }) {
       </div>
 
       {/* Findings */}
-      {visible.length > 0 && (
-        <div className="space-y-2" style={{ borderTop: "1px solid #1a1a1a", paddingTop: "0.75rem" }}>
-          <p className="text-xs font-mono uppercase" style={{ color: "#3d3a39", letterSpacing: "1.5px" }}>
-            Findings
-          </p>
-          <ul className="space-y-2">
-            {visible.map((f, i) => (
-              <li key={i} className="flex gap-2 items-start">
-                <span
-                  className="text-xs font-mono px-1.5 py-0.5 rounded shrink-0 mt-0.5 tabular-nums"
-                  style={{
-                    color:      f.confidence >= 90 ? "#00d992" : "#ffba00",
-                    background: f.confidence >= 90 ? "rgba(0,217,146,0.08)" : "rgba(255,186,0,0.08)",
-                    border:     f.confidence >= 90 ? "1px solid rgba(0,217,146,0.2)" : "1px solid rgba(255,186,0,0.2)",
-                  }}
-                >
-                  {f.confidence}%
-                </span>
-                <span className="text-xs leading-relaxed" style={{ color: "#b8b3b0" }}>{f.text}</span>
-              </li>
-            ))}
-          </ul>
-          {lowConfidence.length > 0 && (
-            <button
-              onClick={() => setShowAll((v) => !v)}
-              className="text-xs font-mono transition-colors"
-              style={{ color: "#3d3a39" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#8b949e")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#3d3a39")}
-            >
-              {showAll ? "↑ hide low-confidence" : `+ ${lowConfidence.length} low-confidence`}
-            </button>
+      {d.findings.length > 0 && (
+        <div style={{ borderTop: "1px solid #1a1a1a", paddingTop: "0.75rem" }}>
+          <button
+            onClick={() => setShowFindings((v) => !v)}
+            className="text-xs font-mono transition-colors"
+            style={{ color: "#3d3a39" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#8b949e")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#3d3a39")}
+          >
+            {showFindings ? "↑ hide findings" : `↓ ${d.findings.length} finding${d.findings.length !== 1 ? "s" : ""}`}
+          </button>
+          {showFindings && (
+            <ul className="space-y-2 mt-2">
+              {d.findings.map((f, i) => {
+                const cert = certaintyLabel(f.confidence);
+                return (
+                  <li key={i} className="flex gap-2 items-start">
+                    <span
+                      className="text-xs font-mono px-1.5 py-0.5 rounded shrink-0 mt-0.5 whitespace-nowrap"
+                      style={{ color: cert.color, background: cert.bg, border: cert.border }}
+                    >
+                      {cert.label}
+                    </span>
+                    <span className="text-xs leading-relaxed" style={{ color: "#b8b3b0" }}>{f.text}</span>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
       )}

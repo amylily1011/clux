@@ -1,47 +1,30 @@
-const CLI_SIGNALS = [
-  /--[\w-]+/,                          // long flags: --help, --dry-run
-  /-[a-zA-Z]\b/,                       // short flags: -v, -h
-  /\busage:/i,                         // "Usage:" header
-  /\bsynopsis:/i,                      // "Synopsis:" header
-  /\boptions:/i,                       // "Options:" header
-  /\bcommands?:/i,                     // "Commands:" or "Command:"
-  /\bsubcommands?:/i,                  // "Subcommands:" header
-  /\bflags:/i,                         // "Flags:" header
-  /\barguments?:/i,                    // "Arguments:" header
-  /\bexamples?:/i,                     // "Examples:" header
-  /^\s*\$/m,                           // $ prompt line
-  /\[options\]/i,                      // [options] placeholder
-  /\[flags\]/i,                        // [flags] placeholder
-  /\(default[: ]/i,                    // "(default: ...)" pattern
-  /exit code/i,                        // exit code mention
-  /^\s{2,}\w[\w-]+\s{2,}/m,           // indented command listing (common in help output)
-];
+// Single-line command pattern (with optional leading prompt char stripped)
+const COMMAND_PATTERN = /^[\w][\w/.-]*(\s+[\w][\w/.-]*)*(\s+--?[\w-]+)*$/;
 
-const MIN_SIGNALS = 1;
-
-const COMMAND_NAME = /^[\w][\w.-]*(\s+[\w][\w.-]*)*(\s+--?[\w-]+)*$/;
+// Clearly non-content: only whitespace, punctuation, or a lone prompt char
+const CLEARLY_EMPTY = /^[$%#>!\s]*$/;
 
 export function prescreenCLIContent(text: string): { ok: boolean; reason?: string } {
   const trimmed = text.trim();
 
-  if (trimmed.length < 2) {
+  if (trimmed.length < 2 || CLEARLY_EMPTY.test(trimmed)) {
     return { ok: false, reason: "Input is too short to evaluate." };
   }
 
-  // Short single-line input with no newlines → treat as a command name (e.g. "multipass find")
-  if (!trimmed.includes("\n") && trimmed.length <= 120 && COMMAND_NAME.test(trimmed)) {
+  // Multi-line content (command + output, help text, tables, etc.) — always pass
+  if (trimmed.includes("\n")) {
     return { ok: true };
   }
 
-  const matches = CLI_SIGNALS.filter((pattern) => pattern.test(trimmed));
+  // Single-line: strip a leading shell prompt if present, then check command shape
+  const withoutPrompt = trimmed.replace(/^[$%#>]\s+/, "").trim();
 
-  if (matches.length < MIN_SIGNALS) {
-    return {
-      ok: false,
-      reason:
-        "This doesn't look like CLI output. Try a command name like `multipass find`, or paste the output of `<command> --help`.",
-    };
+  if (COMMAND_PATTERN.test(withoutPrompt)) {
+    return { ok: true };
   }
 
-  return { ok: true };
+  return {
+    ok: false,
+    reason: "Try a command name like `git --help`, or paste the output of `<command> --help`.",
+  };
 }
