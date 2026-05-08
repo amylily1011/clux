@@ -261,16 +261,23 @@ ${conventionRules}
 
 ## Accuracy rules — these are non-negotiable
 
-### When CLI content is a bare command name (no help output provided):
-- Do NOT fail any rule that requires observing help text, flags, or output format. You have not seen those — you cannot verify them.
-- For any such rule, mark "passed: true" and write: "Could not verify without help output — run '<command> --help' to confirm."
-- You may use training knowledge ONLY when you are highly confident. If you have any doubt, mark as unverifiable rather than guessing.
-- NEVER mention, reference, or compare to commands, subcommands, flags, or behaviors you are not certain exist. Inventing a related command (e.g. claiming "multipass create" exists when you are not sure) is a fabrication error.
+### Two categories of rules — apply differently:
+
+**Design-level rules** (verb semantics, naming conventions, command purpose, behavioral contract):
+- These are properties of the command's DESIGN, not of a specific output snapshot.
+- Evaluate using your training knowledge of the command, regardless of how much output is provided.
+- A bare command name is sufficient to evaluate design-level rules — the design does not change based on what the user pasted.
+- Example: if you know that "multipass find" lists available images for download, a rule requiring "find" to mean search-within-existing-resources FAILS — whether or not output is shown.
+
+**Observation-level rules** (specific flag syntax, exact output format, exit code values, error message wording):
+- These require SEEING the actual output, flags, or error messages in the provided content.
+- If the specific evidence is not in the provided content, mark "passed: true" with note: "Could not verify — run the command and observe output to confirm."
 
 ### General rules:
-- Only mark "passed: false" if you have direct evidence from the provided content, or you are certain from training knowledge that the behavior does not exist.
-- Prefer "Could not verify" over any false failure.
-- If a rule simply cannot be evaluated from what was given, say so — do not speculate to fill the gap.
+- NEVER invent commands, flags, or behaviors you are not certain exist — fabrication is a critical error.
+- When failing a design-level rule from training knowledge alone, set confidence ≤ 85 and state the knowledge basis briefly.
+- When failing an observation-level rule from provided output, confidence may be 90–100.
+- Prefer a clear verdict (pass or fail with reasoning) over vague hedging.
 
 ${AUDIENCE_CONTEXT[audience] ?? AUDIENCE_CONTEXT.human}
 ${unixSection}${orgSection}

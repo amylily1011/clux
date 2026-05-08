@@ -8,20 +8,32 @@ export async function getCached(hash: string): Promise<unknown | null> {
     .maybeSingle();
 
   if (error) {
-    console.error("eval_cache read error:", error.message);
+    console.error("[eval-cache] read error:", error.message);
     return null;
   }
   return data?.result ?? null;
 }
 
-// Fire-and-forget — caller does not need to await this.
-export function setCached(hash: string, result: unknown): void {
-  db.from("eval_cache")
-    .insert({ hash, result })
-    .then(({ error }) => {
-      // 23505 = unique_violation (duplicate hash — already cached by a concurrent request)
-      if (error && error.code !== "23505") {
-        console.error("eval_cache write error:", error.message);
-      }
-    });
+/**
+ * Upserts the result (first-writer-wins — ON CONFLICT DO NOTHING), then reads
+ * back whatever is stored. Concurrent cold starts racing on the same hash will
+ * all converge to the same canonical value from the DB rather than each
+ * returning their own AI result.
+ */
+export async function setCachedAndRead(hash: string, result: unknown): Promise<unknown> {
+  await db
+    .from("eval_cache")
+    .upsert({ hash, result }, { onConflict: "hash", ignoreDuplicates: true });
+
+  const { data, error } = await db
+    .from("eval_cache")
+    .select("result")
+    .eq("hash", hash)
+    .single();
+
+  if (error || !data) {
+    console.error("[eval-cache] canonical read error:", error?.message);
+    return result; // fall back to our own result only if the DB read fails
+  }
+  return data.result;
 }

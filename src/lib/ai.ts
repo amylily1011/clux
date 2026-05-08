@@ -7,7 +7,7 @@ import { moonshotai } from "@ai-sdk/moonshotai";
 import { ClaudeResponseSchema, ConventionResponseSchema } from "./schema";
 import { buildContentPrompt, buildConventionPrompt, SYSTEM_PROMPT } from "./prompt";
 import { UNIX_RULES } from "./unix-rules";
-import { getCached, setCached } from "./eval-cache";
+import { getCached, setCachedAndRead } from "./eval-cache";
 import type { EvaluationResult } from "@/types/evaluation";
 import type { z } from "zod";
 
@@ -54,9 +54,11 @@ async function lookup<T>(hash: string, schema: { parse: (v: unknown) => T }): Pr
   return null;
 }
 
-function store(hash: string, result: unknown): void {
-  memCache.set(hash, result);
-  setCached(hash, result); // fire-and-forget
+async function storeAndRead<T>(hash: string, result: T, schema: { parse: (v: unknown) => T }): Promise<T> {
+  const canonical = await setCachedAndRead(hash, result);
+  const parsed = schema.parse(canonical);
+  memCache.set(hash, parsed);
+  return parsed;
 }
 
 function parseJSON(text: string): unknown {
@@ -107,8 +109,7 @@ export async function evaluateByContent(content: string, audience: string): Prom
 
   const text   = await generate(buildContentPrompt(content, audience), 8192);
   const result = validate(ClaudeResponseSchema, parseJSON(text), "content");
-  store(hash, result);
-  return result;
+  return storeAndRead(hash, result, ClaudeResponseSchema);
 }
 
 export async function evaluateByUnix(cliText: string, audience: string): Promise<z.infer<typeof ConventionResponseSchema>> {
@@ -119,8 +120,7 @@ export async function evaluateByUnix(cliText: string, audience: string): Promise
 
   const text   = await generate(buildConventionPrompt("", cliText, audience, UNIX_RULES), 8192);
   const result = validate(ConventionResponseSchema, parseJSON(text), "unix");
-  store(hash, result);
-  return result;
+  return storeAndRead(hash, result, ConventionResponseSchema);
 }
 
 export async function evaluateByConvention(
@@ -137,6 +137,5 @@ export async function evaluateByConvention(
 
   const text   = await generate(buildConventionPrompt(conventionRules, cliText, audience, unixRules), 16000);
   const result = validate(ConventionResponseSchema, parseJSON(text), "convention");
-  store(hash, result);
-  return result;
+  return storeAndRead(hash, result, ConventionResponseSchema);
 }

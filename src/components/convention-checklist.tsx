@@ -13,6 +13,7 @@ type Filter = "org" | "unix" | "both";
 export function ConventionChecklist({ items, showToggle = false }: Props) {
   const [filter, setFilter] = useState<Filter>("org");
   const [showPassed, setShowPassed] = useState(false);
+  const [showUnverified, setShowUnverified] = useState(false);
 
   const hasOrg  = items.some((i) => i.type === "org"  || i.type == null);
   const hasUnix = items.some((i) => i.type === "unix");
@@ -27,10 +28,12 @@ export function ConventionChecklist({ items, showToggle = false }: Props) {
     return i.type === "org" || i.type == null;
   });
 
-  const passedItems = visible.filter((i) => i.passed);
-  const failedItems = visible.filter((i) => !i.passed);
-  const passed = passedItems.length;
-  const failed = failedItems.length;
+  const failedItems     = visible.filter((i) => !i.passed);
+  const unverifiedItems = visible.filter((i) =>  i.passed && i.note?.toLowerCase().includes("could not verify"));
+  const passedItems     = visible.filter((i) =>  i.passed && !i.note?.toLowerCase().includes("could not verify"));
+  const failed     = failedItems.length;
+  const unverified = unverifiedItems.length;
+  const passed     = passedItems.length;
 
   const title =
     !showFilterBar      ? "Convention Compliance" :
@@ -111,6 +114,7 @@ export function ConventionChecklist({ items, showToggle = false }: Props) {
           )}
           <div className="flex items-center gap-3 text-xs font-mono">
             <span style={{ color: "#00d992" }}>✓ {passed} passed</span>
+            {unverified > 0 && <span style={{ color: "#8b949e" }}>? {unverified} unverified</span>}
             {failed > 0 && <span style={{ color: "#fb565b" }}>✗ {failed} failed</span>}
           </div>
         </div>
@@ -136,6 +140,39 @@ export function ConventionChecklist({ items, showToggle = false }: Props) {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* Unverified items toggle */}
+      {unverified > 0 && (
+        <div>
+          <button
+            onClick={() => setShowUnverified((v) => !v)}
+            className="text-xs font-mono transition-colors"
+            style={{ color: "#3d3a39" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#8b949e")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#3d3a39")}
+          >
+            {showUnverified ? "↑ hide unverified" : `↓ ${unverified} unverified`}
+          </button>
+          {showUnverified && (
+            <ul className="space-y-2 mt-3">
+              {unverifiedItems.map((item, i) => (
+                <li key={i} className="flex items-start gap-3 text-sm">
+                  <span className="shrink-0 mt-0.5 text-xs font-bold font-mono" style={{ color: "#8b949e" }}>?</span>
+                  <div className="space-y-0.5 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {typeBadge(item)}
+                      <p style={{ color: "#4a4a4a" }}>{item.rule}</p>
+                    </div>
+                    {item.note && (
+                      <p className="text-xs leading-relaxed" style={{ color: "#3d3a39" }}>{item.note}</p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       {/* Passed items toggle */}
