@@ -49,13 +49,17 @@ export async function POST(req: NextRequest) {
 
       const orgItems = (result.complianceItems ?? []).filter((i: { type?: string }) => i.type === "org");
       if (orgItems.length > 0) {
-        const total  = orgItems.length;
-        const passed = orgItems.filter((i: { passed: boolean }) => i.passed).length;
-        const failed = total - passed;
-        const countSentence =
-          failed === 0
-            ? `All ${total} org rule${total > 1 ? "s" : ""} pass.`
-            : `${passed} of ${total} org rule${total > 1 ? "s" : ""} pass${passed === 1 ? "es" : ""}, ${failed} fail${failed === 1 ? "s" : ""}.`;
+        const isUnverified = (i: { passed: boolean; note?: string }) =>
+          i.passed && !!i.note?.toLowerCase().includes("could not verify");
+        const total      = orgItems.length;
+        const unverified = orgItems.filter(isUnverified).length;
+        const passed     = orgItems.filter((i) => i.passed && !isUnverified(i)).length;
+        const failed     = orgItems.filter((i) => !i.passed).length;
+        const parts: string[] = [];
+        if (passed > 0)     parts.push(`${passed} pass${passed === 1 ? "es" : ""}`);
+        if (unverified > 0) parts.push(`${unverified} unverified`);
+        if (failed > 0)     parts.push(`${failed} fail${failed === 1 ? "s" : ""}`);
+        const countSentence = `${total} org rule${total > 1 ? "s" : ""}: ${parts.join(", ")}.`;
         const rest = result.overallSummary.replace(/^[^.!?]+[.!?]\s*/, "");
         result = { ...result, overallSummary: `${countSentence}${rest ? " " + rest : ""}` };
       }

@@ -161,7 +161,7 @@ export function CLIInputForm({ onResult, onError, loading, setLoading }: Props) 
           <textarea
             value={cliText}
             onChange={(e) => setCLIText(e.target.value)}
-            placeholder={"git --help\n\n— or paste the input and output of a command —\n\n$ ppa --help\n..."}
+            placeholder={"git --help\n\n— or paste the input and output of a command, including error messages, help text, tables, etc. The more context you provide, the better!"}
             autoFocus
             className="w-full text-xs font-mono rounded p-4 resize-y min-h-[180px] focus:outline-none"
             style={{ background: "#050507", border: "1px solid #3d3a39", color: "#f2f2f2", lineHeight: 1.6 }}

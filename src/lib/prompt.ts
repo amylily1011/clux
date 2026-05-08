@@ -257,7 +257,7 @@ ${conventionRules}
    - "note": one sentence explaining why it passed or failed (optional but helpful for failures)
    - "type": MUST be exactly "unix" for rules from the UNIX Compliance Rules section, and exactly "org" for rules from the Org Conventions section. NEVER mix these — a UNIX rule must never have "type": "org" and an org rule must never have "type": "unix". Every item must have this field set.
 4. Also evaluate against the 8 standard UX dimensions, scoped to the single command only.
-5. "overallSummary": exactly 2 sentences — first sentence states overall pass/fail count, second sentence names the most critical failure (or says all rules pass).
+5. "overallSummary": exactly 2 sentences — first sentence states overall pass/fail/unverified count (unverified items are NOT passed — count them separately), second sentence names the most critical failure (or says all rules pass).
 6. Recommendations should reference the specific rule being violated.
 
 ## Accuracy rules — these are non-negotiable

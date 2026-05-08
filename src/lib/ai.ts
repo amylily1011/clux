@@ -31,13 +31,6 @@ const TEMPERATURE = 0;
 // Changing SYSTEM_PROMPT invalidates all cache entries automatically.
 const PROMPT_VERSION = createHash("sha256").update(SYSTEM_PROMPT).digest("hex").slice(0, 8);
 
-// Normalize CLI input to the command name only (first line, strip shell prompt chars).
-// Both "multipass find" and "multipass find\n<full output>" collapse to the same key.
-function extractCommandKey(cliText: string): string {
-  const firstLine = cliText.trim().split(/\r?\n/)[0].trim();
-  return firstLine.replace(/^[%$#>]\s*/, "").trim().toLowerCase();
-}
-
 // L1: module-scope memory cache (warm instance, zero-latency).
 // L2: Supabase eval_cache table (cross-instance persistence).
 const memCache = new Map<string, unknown>();
@@ -120,7 +113,7 @@ export async function evaluateByContent(content: string, audience: string): Prom
 }
 
 export async function evaluateByUnix(cliText: string, audience: string): Promise<z.infer<typeof ConventionResponseSchema>> {
-  const hash = inputHash(extractCommandKey(cliText), audience, "unix");
+  const hash = inputHash(cliText, audience, "unix");
 
   const cached = await lookup(hash, ConventionResponseSchema);
   if (cached) return cached;
@@ -137,7 +130,7 @@ export async function evaluateByConvention(
   _unused = false,
   unixRules?: string,
 ): Promise<z.infer<typeof ConventionResponseSchema>> {
-  const hash = inputHash(conventionRules, extractCommandKey(cliText), audience, unixRules ?? "", "convention");
+  const hash = inputHash(conventionRules, cliText, audience, unixRules ?? "", "convention");
 
   const cached = await lookup(hash, ConventionResponseSchema);
   if (cached) return cached;
