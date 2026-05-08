@@ -224,21 +224,22 @@ Return the COMPLETE JSON object defined in the system prompt — cluxScore, cliN
 export function buildConventionPrompt(conventionRules: string, cliText: string, audience: string, unixRules?: string): string {
   const unixSection = unixRules ? `
 ## UNIX Compliance Rules
-For each UNIX rule, add a complianceItem with "type": "unix".
+Evaluate the CLI against each rule below. For every UNIX rule you must set "type": "unix" — never "org".
 
 --- UNIX RULES START ---
 ${unixRules}
 --- UNIX RULES END ---
 ` : "";
 
-  const orgSection = `
+  const hasOrgRules = conventionRules && conventionRules.trim().length > 0;
+  const orgSection = hasOrgRules ? `
 ## Org Conventions
-For each org convention rule, add a complianceItem with "type": "org".
+Evaluate the CLI against each rule below. For every org convention you must set "type": "org" — never "unix".
 
 --- ORG CONVENTIONS START ---
 ${conventionRules}
 --- ORG CONVENTIONS END ---
-`;
+` : "";
 
   return `You are checking whether a specific CLI command complies with design rules.
 
@@ -254,7 +255,7 @@ ${conventionRules}
    - "rule": the rule text (keep it short, max 10 words)
    - "passed": true or false
    - "note": one sentence explaining why it passed or failed (optional but helpful for failures)
-   - "type": "unix" or "org" as specified per rule set
+   - "type": MUST be exactly "unix" for rules from the UNIX Compliance Rules section, and exactly "org" for rules from the Org Conventions section. NEVER mix these — a UNIX rule must never have "type": "org" and an org rule must never have "type": "unix". Every item must have this field set.
 4. Also evaluate against the 8 standard UX dimensions, scoped to the single command only.
 5. "overallSummary": exactly 2 sentences — first sentence states overall pass/fail count, second sentence names the most critical failure (or says all rules pass).
 6. Recommendations should reference the specific rule being violated.

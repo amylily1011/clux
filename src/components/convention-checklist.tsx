@@ -15,7 +15,7 @@ export function ConventionChecklist({ items, showToggle = false }: Props) {
   const [showPassed, setShowPassed] = useState(false);
   const [showUnverified, setShowUnverified] = useState(false);
 
-  const hasOrg  = items.some((i) => i.type === "org"  || i.type == null);
+  const hasOrg  = items.some((i) => i.type === "org");
   const hasUnix = items.some((i) => i.type === "unix");
   const showFilterBar = showToggle && hasOrg && hasUnix;
   const isUnixOnly = hasUnix && !hasOrg;
@@ -25,7 +25,7 @@ export function ConventionChecklist({ items, showToggle = false }: Props) {
     if (!showFilterBar) return true;
     if (filter === "both") return true;
     if (filter === "unix") return i.type === "unix";
-    return i.type === "org" || i.type == null;
+    return i.type === "org";
   });
 
   const failedItems     = visible.filter((i) => !i.passed);
